@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileSpreadsheet, FileText } from "lucide-react";
+import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 
 import type { ZBookmarkTypeAsset } from "@karakeep/shared/types/bookmarks";
 import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
@@ -77,6 +77,32 @@ function AssetImage({
           className={cn(className, "flex items-center justify-center")}
         >
           <FileSpreadsheet size={80} />
+        </Link>
+      );
+    }
+    case "pptx": {
+      const screenshotAssetId = bookmark.assets.find(
+        (r) => r.assetType === "assetScreenshot",
+      )?.id;
+      if (!screenshotAssetId) {
+        return (
+          <div
+            className={cn(className, "flex items-center justify-center")}
+            title="No cover thumbnail was embedded in this .pptx file"
+          >
+            <Presentation size={80} />
+          </div>
+        );
+      }
+      return (
+        <Link href={`/dashboard/preview/${bookmark.id}`}>
+          <Image
+            alt="asset"
+            src={getAssetUrl(screenshotAssetId)}
+            fill={true}
+            unoptimized
+            className={className}
+          />
         </Link>
       );
     }

@@ -83,7 +83,7 @@ export function useUploadAsset() {
 
 function contentTypeToAssetType(
   contentType: string,
-): "pdf" | "docx" | "xlsx" | "image" {
+): "pdf" | "docx" | "xlsx" | "pptx" | "image" {
   switch (contentType) {
     case "application/pdf":
       return "pdf";
@@ -91,6 +91,8 @@ function contentTypeToAssetType(
       return "docx";
     case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
       return "xlsx";
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      return "pptx";
     default:
       return "image";
   }
@@ -183,7 +185,7 @@ export default function UploadDropzone({
               </div>
             ) : (
               <p className="text-2xl font-bold text-gray-700">
-                Drop Your Image / PDF / Word / Excel / Text file
+                Drop Your Image / PDF / Word / Excel / PowerPoint / Text file
               </p>
             )}
           </div>

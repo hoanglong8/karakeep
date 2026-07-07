@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n/client";
+import { $createCodeNode } from "@lexical/code";
+import { $createLinkNode } from "@lexical/link";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
   TRANSFORMERS,
 } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $setBlocksType } from "@lexical/selection";
 import { mergeRegister } from "@lexical/utils";
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
   $getSelection,
+  $insertNodes,
   $isRangeSelection,
   FORMAT_TEXT_COMMAND,
   LexicalCommand,
@@ -22,11 +26,13 @@ import {
 import {
   Bold,
   Code,
+  FileCode,
   Highlighter,
   Italic,
   LucideIcon,
   Save,
   Strikethrough,
+  Video,
 } from "lucide-react";
 
 import { ActionButton } from "../../action-button";
@@ -221,9 +227,29 @@ export default function ToolbarPlugin({
     },
   ];
 
+  const insertCodeBlock = useCallback(() => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        $setBlocksType(selection, () => $createCodeNode());
+      }
+    });
+  }, [editor]);
+
+  const insertVideoLink = useCallback(() => {
+    const url = window.prompt(t("editor.text_toolbar.insert_video_prompt"));
+    if (!url) {
+      return;
+    }
+    editor.update(() => {
+      const linkNode = $createLinkNode(url);
+      linkNode.append($createTextNode(url));
+      $insertNodes([linkNode]);
+    });
+  }, [editor, t]);
+
   const handleRawMarkdownToggle = useCallback(() => {
     editor.update(() => {
-      console.log(isRawMarkdownMode);
       const root = $getRoot();
       const firstChild = root.getFirstChild();
       if (isRawMarkdownMode) {
@@ -242,8 +268,8 @@ export default function ToolbarPlugin({
   }, [editor, isRawMarkdownMode]);
 
   return (
-    <div className="mb-1 flex items-center justify-between rounded-t-lg p-1">
-      <div className="flex">
+    <div className="mb-1 flex flex-wrap items-center justify-between gap-1 rounded-t-lg p-1">
+      <div className="flex flex-wrap">
         {formatButtons.map(
           ({ command, format, icon: Icon, isActive, label }) => (
             <Button
@@ -260,8 +286,34 @@ export default function ToolbarPlugin({
             </Button>
           ),
         )}
+        <Button
+          disabled={isRawMarkdownMode}
+          size="sm"
+          // Toolbar buttons steal focus on mousedown, which clears the
+          // editor's selection before onClick fires. insertCodeBlock and
+          // insertVideoLink read $getSelection() directly (unlike the
+          // format buttons above, which go through dispatchCommand and so
+          // don't need this), so preventDefault here keeps the selection
+          // alive.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={insertCodeBlock}
+          variant="ghost"
+          aria-label={t("editor.text_toolbar.code_block")}
+        >
+          <FileCode className="h-4 w-4" />
+        </Button>
+        <Button
+          disabled={isRawMarkdownMode}
+          size="sm"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={insertVideoLink}
+          variant="ghost"
+          aria-label={t("editor.text_toolbar.insert_video")}
+        >
+          <Video className="h-4 w-4" />
+        </Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center space-x-2">
           <Switch
             id="editor-raw-markdown"

@@ -20,7 +20,7 @@ import { Bookmark } from "@karakeep/trpc/models/bookmarks";
 async function fetchBookmarkDetailsForSummary(bookmarkId: string) {
   const bookmark = await db.query.bookmarks.findFirst({
     where: eq(bookmarks.id, bookmarkId),
-    columns: { id: true, userId: true, type: true },
+    columns: { id: true, userId: true, type: true, note: true },
     with: {
       link: {
         columns: {
@@ -102,7 +102,7 @@ export async function runSummarization(
       (await Bookmark.getBookmarkPlainTextContent(link, bookmarkData.userId)) ??
       "";
 
-    if (!link.description && !content) {
+    if (!link.description && !content && !bookmarkData.note) {
       // No content to infer from; skip summarization
       logger.info(
         `[inference] No content found for link "${bookmarkId}". Skipping summary.`,
@@ -117,6 +117,7 @@ Content: ${content}
 Publisher: ${link.publisher ?? ""}
 Author: ${link.author ?? ""}
 URL: ${link.url ?? ""}
+User's Note: ${bookmarkData.note ?? ""}
 `;
   } else {
     logger.warn(

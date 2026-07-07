@@ -31,6 +31,7 @@ export const enum ASSET_TYPES {
   TEXT_PLAIN = "text/plain",
   APPLICATION_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   APPLICATION_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  APPLICATION_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 
   VIDEO_MP4 = "video/mp4",
   VIDEO_WEBM = "video/webm",
@@ -65,6 +66,7 @@ export const SUPPORTED_UPLOAD_ASSET_TYPES: Set<string> = new Set<string>([
   ASSET_TYPES.TEXT_HTML,
   ASSET_TYPES.TEXT_PLAIN,
   ASSET_TYPES.APPLICATION_PDF,
+  ASSET_TYPES.APPLICATION_PPTX,
 ]);
 
 // The assets that we allow as a bookmark of type asset
@@ -72,6 +74,7 @@ export const SUPPORTED_BOOKMARK_ASSET_TYPES: Set<string> = new Set<string>([
   ...IMAGE_ASSET_TYPES,
   ...DOCUMENT_ASSET_TYPES,
   ASSET_TYPES.APPLICATION_PDF,
+  ASSET_TYPES.APPLICATION_PPTX,
 ]);
 
 // The assets that we support saving in the asset db

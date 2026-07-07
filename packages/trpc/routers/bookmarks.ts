@@ -1,5 +1,7 @@
 import { experimental_trpcMiddleware, TRPCError } from "@trpc/server";
+import DOMPurify from "dompurify";
 import { and, eq, gt, inArray, like, lt, or } from "drizzle-orm";
+import { JSDOM } from "jsdom";
 import { z } from "zod";
 
 import {
@@ -28,7 +30,12 @@ import {
   QuotaService,
   triggerSearchReindex,
 } from "@karakeep/shared-server";
-import { SUPPORTED_BOOKMARK_ASSET_TYPES } from "@karakeep/shared/assetdb";
+import {
+  newAssetId,
+  saveAsset,
+  silentDeleteAsset,
+  SUPPORTED_BOOKMARK_ASSET_TYPES,
+} from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import { InferenceClientFactory } from "@karakeep/shared/inference";
 import { buildSummaryPrompt } from "@karakeep/shared/prompts.server";
@@ -68,6 +75,19 @@ import { getBookmarkIdsFromMatcher } from "../lib/search";
 import { Asset } from "../models/assets";
 import { BareBookmark, Bookmark } from "../models/bookmarks";
 import { WebhooksService } from "../models/webhooks.service";
+
+// Mirrors the sanitization the crawler applies to freshly-crawled content
+// (apps/workers/scripts/parseHtmlSubprocess.ts) so user-edited reader
+// content can't introduce script/event-handler injection, which matters
+// once a bookmark is shared via a public list.
+function sanitizeReaderHtml(html: string): string {
+  const purifyWindow = new JSDOM("").window;
+  try {
+    return DOMPurify(purifyWindow).sanitize(html);
+  } finally {
+    purifyWindow.close();
+  }
+}
 
 const bookmarksProcedure = createScopedAuthedProcedure("bookmarks");
 
@@ -469,6 +489,7 @@ export const bookmarksAppRouter = router({
     .output(zBookmarkSchema)
     .use(ensureBookmarkOwnership)
     .mutation(async ({ input, ctx }) => {
+      let oldContentAssetToDelete: string | undefined;
       await ctx.db.transaction(async (tx) => {
         let somethingChanged = false;
 
@@ -551,6 +572,71 @@ export const bookmarksAppRouter = router({
           somethingChanged = true;
         }
 
+        if (input.htmlContent !== undefined) {
+          const existingLink = await tx.query.bookmarkLinks.findFirst({
+            where: eq(bookmarkLinks.id, input.bookmarkId),
+            columns: { contentAssetId: true },
+          });
+          if (!existingLink) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Attempting to set html content for non-link type bookmark",
+            });
+          }
+
+          const sanitized = input.htmlContent
+            ? sanitizeReaderHtml(input.htmlContent)
+            : null;
+          const contentSize = sanitized
+            ? Buffer.byteLength(sanitized, "utf8")
+            : 0;
+          const storeAsAsset =
+            sanitized !== null &&
+            contentSize >= serverConfig.crawler.htmlContentSizeThreshold;
+
+          let newContentAssetId: string | null = null;
+          if (storeAsAsset && sanitized) {
+            const quotaApproved = await QuotaService.checkStorageQuota(
+              tx,
+              ctx.user.id,
+              contentSize,
+            );
+            newContentAssetId = newAssetId();
+            await saveAsset({
+              userId: ctx.user.id,
+              assetId: newContentAssetId,
+              asset: Buffer.from(sanitized, "utf8"),
+              metadata: { contentType: "text/html" },
+              quotaApproved,
+            });
+            await tx.insert(assets).values({
+              id: newContentAssetId,
+              bookmarkId: input.bookmarkId,
+              userId: ctx.user.id,
+              assetType: AssetTypes.LINK_HTML_CONTENT,
+              contentType: "text/html",
+              size: contentSize,
+            });
+          }
+
+          await tx
+            .update(bookmarkLinks)
+            .set({
+              htmlContent: storeAsAsset ? null : sanitized,
+              contentAssetId: newContentAssetId,
+            })
+            .where(eq(bookmarkLinks.id, input.bookmarkId));
+
+          if (existingLink.contentAssetId) {
+            await tx
+              .delete(assets)
+              .where(eq(assets.id, existingLink.contentAssetId));
+            oldContentAssetToDelete = existingLink.contentAssetId;
+          }
+          somethingChanged = true;
+        }
+
         // Update common bookmark fields
         const commonUpdateData: Partial<{
           title: string | null;
@@ -606,6 +692,10 @@ export const bookmarksAppRouter = router({
             );
         }
       });
+
+      if (oldContentAssetToDelete) {
+        await silentDeleteAsset(ctx.user.id, oldContentAssetToDelete);
+      }
 
       // Refetch the updated bookmark data to return the full object
       const updatedBookmark = (

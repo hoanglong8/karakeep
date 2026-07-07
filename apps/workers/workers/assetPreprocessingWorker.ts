@@ -1,6 +1,7 @@
 import os from "os";
 import { and, eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import mammoth from "mammoth";
 import { workerStatsCounter } from "metrics";
 import PDFParser from "pdf2json";
@@ -123,8 +124,15 @@ async function readImageText(buffer: Buffer) {
   if (serverConfig.ocr.langs.length == 1 && serverConfig.ocr.langs[0] == "") {
     return null;
   }
+  // Without an errorHandler, tesseract.js rethrows worker job errors (e.g. a
+  // corrupt/undecodable image) synchronously inside its internal message
+  // handler, which Node treats as an uncaught exception and crashes the
+  // whole process instead of rejecting the recognize() promise.
   const worker = await createWorker(serverConfig.ocr.langs, undefined, {
     cachePath: serverConfig.ocr.cacheDir ?? os.tmpdir(),
+    errorHandler: (err) => {
+      logger.error(`[assetPreprocessing] Tesseract worker error: ${err}`);
+    },
   });
   try {
     const ret = await worker.recognize(buffer);
@@ -272,6 +280,112 @@ export async function extractAndSavePDFScreenshot(
     }
     logger.error(
       `[assetPreprocessing][${jobId}] Failed to process PDF screenshot: ${error}`,
+    );
+    return false;
+  }
+}
+
+// A .pptx is a zip archive. PowerPoint embeds a low-res cover thumbnail at
+// docProps/thumbnail.jpeg by default (the OOXML "thumbnail" relationship),
+// so we can pull it out directly without rendering the slide ourselves.
+// Files saved with "Save thumbnail" disabled, or exported from tools that
+// don't embed one (e.g. Google Slides), won't have this — callers should
+// treat a null return as "no cover available", not an error.
+async function extractPptxThumbnailBytes(
+  buffer: Buffer,
+): Promise<{ data: Buffer; contentType: string; fileName: string } | null> {
+  const zip = await JSZip.loadAsync(buffer);
+  const candidates = [
+    { path: "docProps/thumbnail.jpeg", contentType: "image/jpeg" },
+    { path: "docProps/thumbnail.jpg", contentType: "image/jpeg" },
+    { path: "docProps/thumbnail.png", contentType: "image/png" },
+  ];
+  for (const candidate of candidates) {
+    const entry = zip.file(candidate.path);
+    if (!entry) {
+      continue;
+    }
+    const data = await entry.async("nodebuffer");
+    return {
+      data,
+      contentType: candidate.contentType,
+      fileName: candidate.path.split("/").pop()!,
+    };
+  }
+  return null;
+}
+
+export async function extractAndSavePptxScreenshot(
+  jobId: string,
+  asset: Buffer,
+  bookmark: NonNullable<Awaited<ReturnType<typeof getBookmark>>>,
+  isFixMode: boolean,
+): Promise<boolean> {
+  {
+    const alreadyHasScreenshot =
+      bookmark.assets.find(
+        (r) => r.assetType === AssetTypes.ASSET_SCREENSHOT,
+      ) !== undefined;
+    if (alreadyHasScreenshot && isFixMode) {
+      logger.info(
+        `[assetPreprocessing][${jobId}] Skipping pptx screenshot generation as it's already been generated.`,
+      );
+      return false;
+    }
+  }
+  logger.info(
+    `[assetPreprocessing][${jobId}] Attempting to extract embedded cover thumbnail from pptx for bookmarkId: ${bookmark.id}`,
+  );
+  try {
+    const thumbnail = await extractPptxThumbnailBytes(asset);
+    if (!thumbnail) {
+      logger.info(
+        `[assetPreprocessing][${jobId}] No embedded thumbnail found in pptx. The file may have been saved without "Save thumbnail" enabled.`,
+      );
+      return false;
+    }
+
+    const quotaApproved = await QuotaService.checkStorageQuota(
+      db,
+      bookmark.userId,
+      thumbnail.data.byteLength,
+    );
+
+    const assetId = newAssetId();
+    await saveAsset({
+      userId: bookmark.userId,
+      assetId,
+      asset: thumbnail.data,
+      metadata: {
+        contentType: thumbnail.contentType,
+        fileName: thumbnail.fileName,
+      },
+      quotaApproved,
+    });
+
+    await db.insert(assets).values({
+      id: assetId,
+      bookmarkId: bookmark.id,
+      userId: bookmark.userId,
+      assetType: AssetTypes.ASSET_SCREENSHOT,
+      contentType: thumbnail.contentType,
+      size: thumbnail.data.byteLength,
+      fileName: thumbnail.fileName,
+    });
+
+    logger.info(
+      `[assetPreprocessing][${jobId}] Successfully saved pptx cover thumbnail to database`,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof StorageQuotaError) {
+      logger.warn(
+        `[assetPreprocessing][${jobId}] Skipping pptx screenshot due to quota exceeded: ${error.message}`,
+      );
+      return true; // Return true to indicate the job completed successfully, just skipped the asset
+    }
+    logger.error(
+      `[assetPreprocessing][${jobId}] Failed to process pptx screenshot: ${error}`,
     );
     return false;
   }
@@ -570,6 +684,16 @@ async function run(req: DequeuedJob<AssetPreprocessingRequest>) {
         isFixMode,
       );
       anythingChanged ||= extractedText;
+      break;
+    }
+    case "pptx": {
+      const extractedScreenshot = await extractAndSavePptxScreenshot(
+        jobId,
+        asset,
+        bookmark,
+        isFixMode,
+      );
+      anythingChanged ||= extractedScreenshot;
       break;
     }
     default:

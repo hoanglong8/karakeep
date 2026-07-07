@@ -1,8 +1,10 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { FullPageSpinner } from "@/components/ui/full-page-spinner";
 import { toast } from "@/components/ui/sonner";
 import { useTranslation } from "@/lib/i18n/client";
 import { useQuery } from "@tanstack/react-query";
-import { FileX } from "lucide-react";
+import { FileX, Pencil } from "lucide-react";
 
 import BookmarkHTMLHighlighter from "@karakeep/shared-react/components/BookmarkHtmlHighlighter";
 import ScrollProgressTracker from "@karakeep/shared-react/components/ScrollProgressTracker";
@@ -15,6 +17,7 @@ import { useReadingProgress } from "@karakeep/shared-react/hooks/reading-progres
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
+import ReaderContentEditor from "./ReaderContentEditor";
 import ReadingProgressBanner from "./ReadingProgressBanner";
 
 export default function ReaderView({
@@ -30,6 +33,7 @@ export default function ReaderView({
   readOnly: boolean;
   progressBarStyle?: React.CSSProperties;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
   const { t } = useTranslation();
   const api = useTRPC();
   const { data: highlights } = useQuery(
@@ -109,7 +113,17 @@ export default function ReaderView({
   });
 
   let content;
-  if (isCachedContentLoading) {
+  if (isEditing) {
+    content = (
+      <ReaderContentEditor
+        bookmarkId={bookmarkId}
+        initialHtml={cachedContent ?? ""}
+        className={className}
+        style={style}
+        onDone={() => setIsEditing(false)}
+      />
+    );
+  } else if (isCachedContentLoading) {
     content = <FullPageSpinner />;
   } else if (!cachedContent) {
     content = (
@@ -128,6 +142,12 @@ export default function ReaderView({
               {t("preview.fetch_error_description")}
             </p>
           </div>
+          {!readOnly && (
+            <Button variant="outline" onClick={() => setIsEditing(true)}>
+              <Pencil className="mr-2 size-4" />
+              {t("preview.add_content_manually")}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -148,6 +168,17 @@ export default function ReaderView({
             onContinue={onContinue}
             onDismiss={onDismiss}
           />
+        )}
+        {!readOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="sticky left-full top-2 z-10 mr-2 bg-background"
+            onClick={() => setIsEditing(true)}
+          >
+            <Pencil className="mr-2 size-4" />
+            {t("preview.edit_content")}
+          </Button>
         )}
         <BookmarkHTMLHighlighter
           className={className}

@@ -239,6 +239,7 @@ export class Bookmark extends BareBookmark {
         id: a.id,
         assetType: mapDBAssetTypeToUserType(a.assetType),
         fileName: a.fileName,
+        categoryId: a.categoryId,
       })),
       listColor,
       ...rest,
@@ -898,7 +899,8 @@ export class Bookmark extends BareBookmark {
           switch (content.assetType) {
             case "image":
               return `${getPublicSignedAssetUrl(content.assetId)}`;
-            case "pdf": {
+            case "pdf":
+            case "pptx": {
               const screenshotAssetId = this.bookmark.assets.find(
                 (r) => r.assetType === "assetScreenshot",
               )?.id;

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { BookmarkTagsEditor } from "@/components/dashboard/bookmarks/BookmarkTagsEditor";
+import { EditableText } from "@/components/dashboard/EditableText";
 import { FullPageSpinner } from "@/components/ui/full-page-spinner";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -26,6 +28,7 @@ import {
   User,
 } from "lucide-react";
 
+import { useUpdateBookmark } from "@karakeep/shared-react/hooks/bookmarks";
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import { BookmarkTypes, ZBookmark } from "@karakeep/shared/types/bookmarks";
 import {
@@ -139,6 +142,18 @@ export default function BookmarkPreview({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { data: session } = useSession();
 
+  const updateTitleMutator = useUpdateBookmark({
+    onSuccess: () => {
+      toast({ description: t("toasts.bookmarks.updated") });
+    },
+    onError: () => {
+      toast({
+        description: t("common.something_went_wrong"),
+        variant: "destructive",
+      });
+    },
+  });
+
   const { data: bookmark } = useQuery(
     api.bookmarks.getBookmark.queryOptions(
       {
@@ -193,9 +208,22 @@ export default function BookmarkPreview({
   const detailsSection = (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <p className="line-clamp-2 text-ellipsis break-words text-lg font-medium">
-          {!title ? "Untitled" : title}
-        </p>
+        {isOwner ? (
+          <EditableText
+            originalText={title}
+            viewClassName="line-clamp-2 text-ellipsis break-words text-lg font-medium"
+            untitledClassName="line-clamp-2 text-ellipsis break-words text-lg font-medium text-muted-foreground"
+            editClassName="line-clamp-2 text-ellipsis break-words text-lg font-medium outline-none border-b border-input"
+            isSaving={updateTitleMutator.isPending}
+            onSave={(newTitle) =>
+              updateTitleMutator.mutate({ bookmarkId, title: newTitle })
+            }
+          />
+        ) : (
+          <p className="line-clamp-2 text-ellipsis break-words text-lg font-medium">
+            {!title ? "Untitled" : title}
+          </p>
+        )}
         {sourceUrl && (
           <Link
             href={sourceUrl}

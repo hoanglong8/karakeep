@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import {
+  zAssetCategoryListResponseSchema,
+  zAssetCategorySchema,
+  zCreateAssetCategoryRequestSchema,
+} from "@karakeep/shared/types/assetCategories";
+import {
   zAssetSchema,
   zAssetTypesSchema,
 } from "@karakeep/shared/types/bookmarks";
@@ -48,6 +53,7 @@ export const assetsAppRouter = router({
         asset: z.object({
           id: z.string(),
           assetType: zAssetTypesSchema,
+          categoryId: z.string().nullish(),
         }),
       }),
     )
@@ -55,6 +61,35 @@ export const assetsAppRouter = router({
     .use(ensureBookmarkOwnership)
     .mutation(async ({ input, ctx }) => {
       return await Asset.attachAsset(ctx, input);
+    }),
+  setAssetCategory: assetsProcedure
+    .input(
+      z.object({
+        assetId: z.string(),
+        categoryId: z.string().nullable(),
+      }),
+    )
+    .output(z.void())
+    .mutation(async ({ input, ctx }) => {
+      await Asset.setCategory(ctx, input);
+    }),
+  listCategories: assetsProcedure
+    .output(zAssetCategoryListResponseSchema)
+    .query(async ({ ctx }) => {
+      const categories = await Asset.listCategories(ctx);
+      return { categories };
+    }),
+  createCategory: assetsProcedure
+    .input(zCreateAssetCategoryRequestSchema)
+    .output(zAssetCategorySchema)
+    .mutation(async ({ input, ctx }) => {
+      return await Asset.createCategory(ctx, input);
+    }),
+  deleteCategory: assetsProcedure
+    .input(z.object({ categoryId: z.string() }))
+    .output(z.void())
+    .mutation(async ({ input, ctx }) => {
+      await Asset.deleteCategory(ctx, input);
     }),
   replaceAsset: assetsProcedure
     .input(

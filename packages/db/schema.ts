@@ -301,6 +301,25 @@ export const enum AssetTypes {
   UNKNOWN = "unknown",
 }
 
+export const assetCategories = sqliteTable(
+  "assetCategories",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    name: text("name").notNull(),
+    createdAt: createdAtField(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (ac) => [
+    unique().on(ac.userId, ac.name),
+    index("assetCategories_userId_idx").on(ac.userId),
+  ],
+);
+
 export const assets = sqliteTable(
   "assets",
   {
@@ -332,12 +351,19 @@ export const assets = sqliteTable(
     userId: text("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    // Only meaningful for USER_UPLOADED assets. Lets a user organize
+    // manually-uploaded attachments (e.g. "User Guide", "Deployment Docs")
+    // instead of them all landing in one undifferentiated list.
+    categoryId: text("categoryId").references(() => assetCategories.id, {
+      onDelete: "set null",
+    }),
   },
 
   (tb) => [
     index("assets_bookmarkId_idx").on(tb.bookmarkId),
     index("assets_assetType_idx").on(tb.assetType),
     index("assets_userId_idx").on(tb.userId),
+    index("assets_categoryId_idx").on(tb.categoryId),
   ],
 );
 
@@ -417,7 +443,7 @@ export const bookmarkAssets = sqliteTable("bookmarkAssets", {
     .$defaultFn(() => createId())
     .references(() => bookmarks.id, { onDelete: "cascade" }),
   assetType: text("assetType", {
-    enum: ["image", "pdf", "docx", "xlsx"],
+    enum: ["image", "pdf", "docx", "xlsx", "pptx"],
   }).notNull(),
   assetId: text("assetId").notNull(),
   content: text("content"),

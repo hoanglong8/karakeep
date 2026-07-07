@@ -356,6 +356,10 @@ async function inferTags(
         );
         break;
       case "pdf":
+      case "docx":
+      case "xlsx":
+        // inferTagsFromPDF just builds a text prompt from
+        // bookmark.asset.content, which docx/xlsx also populate.
         response = await inferTagsFromPDF(
           jobId,
           bookmark,
@@ -367,8 +371,14 @@ async function inferTags(
           potentialRelevantTags,
         );
         break;
-      default:
+      case "pptx":
+        // No extracted text or screenshot to tag from.
+        response = null;
+        break;
+      default: {
+        const _exhaustiveCheck: never = bookmark.asset.assetType;
         throw new Error(`[inference][${jobId}] Unsupported bookmark type`);
+      }
     }
   } else {
     throw new Error(`[inference][${jobId}] Unsupported bookmark type`);

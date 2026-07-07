@@ -30,6 +30,7 @@
     "https-proxy-agent": "^7.0.6",
     "ipaddr.js": "^2.2.0",
     "jsdom": "^24.0.0",
+    "jszip": "^3.10.1",
     "liteque": "^0.8.0",
     "lru-cache": "^11.2.2",
     "mammoth": "^1.12.0",

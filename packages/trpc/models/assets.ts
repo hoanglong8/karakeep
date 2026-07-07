@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { assets } from "@karakeep/db/schema";
+import { assetCategories, assets } from "@karakeep/db/schema";
 import { deleteAsset } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import { createSignedToken } from "@karakeep/shared/signedTokens";
@@ -88,6 +88,7 @@ export class Asset {
       asset: {
         id: string;
         assetType: z.infer<typeof zAssetTypesSchema>;
+        categoryId?: string | null;
       };
     },
   ) {
@@ -104,11 +105,16 @@ export class Asset {
       });
     }
 
+    if (input.asset.categoryId) {
+      await Asset.ensureCategoryOwnership(ctx, input.asset.categoryId);
+    }
+
     const [updatedAsset] = await ctx.db
       .update(assets)
       .set({
         assetType: mapSchemaAssetTypeToDB(input.asset.assetType),
         bookmarkId: input.bookmarkId,
+        categoryId: input.asset.categoryId ?? null,
       })
       .where(and(eq(assets.id, input.asset.id), eq(assets.userId, ctx.user.id)))
       .returning();
@@ -117,7 +123,103 @@ export class Asset {
       id: updatedAsset.id,
       assetType: mapDBAssetTypeToUserType(updatedAsset.assetType),
       fileName: updatedAsset.fileName,
+      categoryId: updatedAsset.categoryId,
     };
+  }
+
+  static async setCategory(
+    ctx: AuthedContext,
+    input: { assetId: string; categoryId: string | null },
+  ) {
+    const asset = await Asset.fromId(ctx, input.assetId);
+    asset.ensureOwnership();
+
+    if (input.categoryId) {
+      await Asset.ensureCategoryOwnership(ctx, input.categoryId);
+    }
+
+    await ctx.db
+      .update(assets)
+      .set({ categoryId: input.categoryId })
+      .where(and(eq(assets.id, input.assetId), eq(assets.userId, ctx.user.id)));
+  }
+
+  private static async ensureCategoryOwnership(
+    ctx: AuthedContext,
+    categoryId: string,
+  ) {
+    const category = await ctx.db.query.assetCategories.findFirst({
+      where: and(
+        eq(assetCategories.id, categoryId),
+        eq(assetCategories.userId, ctx.user.id),
+      ),
+    });
+    if (!category) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Asset category not found",
+      });
+    }
+  }
+
+  static async listCategories(ctx: AuthedContext) {
+    const categories = await ctx.db.query.assetCategories.findMany({
+      where: eq(assetCategories.userId, ctx.user.id),
+      orderBy: [asc(assetCategories.name)],
+    });
+    return categories.map((c) => ({ id: c.id, name: c.name }));
+  }
+
+  static async createCategory(ctx: AuthedContext, input: { name: string }) {
+    // Idempotent create-or-get, mirroring how tag creation behaves when the
+    // name already exists.
+    const existing = await ctx.db.query.assetCategories.findFirst({
+      where: and(
+        eq(assetCategories.userId, ctx.user.id),
+        eq(assetCategories.name, input.name),
+      ),
+    });
+    if (existing) {
+      return { id: existing.id, name: existing.name };
+    }
+    const [created] = await ctx.db
+      .insert(assetCategories)
+      .values({ name: input.name, userId: ctx.user.id })
+      .returning();
+    return { id: created.id, name: created.name };
+  }
+
+  static async deleteCategory(
+    ctx: AuthedContext,
+    input: { categoryId: string },
+  ) {
+    // The `assets.categoryId` column was added via an SQLite `ALTER TABLE
+    // ADD COLUMN`, which doesn't carry an `ON DELETE SET NULL` action (SQLite
+    // only applies FK actions declared at table-creation time). Uncategorize
+    // affected assets explicitly before deleting the category to avoid a
+    // FOREIGN KEY constraint failure.
+    await ctx.db.transaction(async (tx) => {
+      await tx
+        .update(assets)
+        .set({ categoryId: null })
+        .where(
+          and(
+            eq(assets.categoryId, input.categoryId),
+            eq(assets.userId, ctx.user.id),
+          ),
+        );
+      const result = await tx
+        .delete(assetCategories)
+        .where(
+          and(
+            eq(assetCategories.id, input.categoryId),
+            eq(assetCategories.userId, ctx.user.id),
+          ),
+        );
+      if (result.changes === 0) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+    });
   }
 
   static async replaceAsset(

@@ -27,7 +27,13 @@ export type ZSortOrder = z.infer<typeof zSortOrder>;
 
 // The file formats supported for ASSET-type bookmarks (i.e. an uploaded
 // file/document, as opposed to a crawled link or a plain text note).
-export const ZBOOKMARK_ASSET_TYPES = ["image", "pdf", "docx", "xlsx"] as const;
+export const ZBOOKMARK_ASSET_TYPES = [
+  "image",
+  "pdf",
+  "docx",
+  "xlsx",
+  "pptx",
+] as const;
 export const zBookmarkAssetTypeSchema = z.enum(ZBOOKMARK_ASSET_TYPES);
 
 export const zAssetTypesSchema = z.enum([
@@ -50,6 +56,7 @@ export const zAssetSchema = z.object({
   id: z.string(),
   assetType: zAssetTypesSchema,
   fileName: z.string().nullish(),
+  categoryId: z.string().nullish(),
 });
 
 export const zBookmarkedLinkSchema = z.object({
@@ -263,6 +270,9 @@ export const zUpdateBookmarksRequestSchema = z.object({
   publisher: z.string().nullish(),
   datePublished: z.coerce.date().nullish(),
   dateModified: z.coerce.date().nullish(),
+  // The reader-view article content, user-edited. Lets a user manually
+  // fix up or replace content for pages that couldn't be crawled properly.
+  htmlContent: z.string().nullish(),
 
   // Text specific fields (optional)
   text: z.string().nullish(),

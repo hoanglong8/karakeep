@@ -7,6 +7,50 @@ import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
+// Recognizes YouTube/Vimeo links so they render as an embedded, playable
+// player instead of a plain link when they're the sole content of a line.
+function getVideoEmbedUrl(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^www\./, "");
+
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    const videoId =
+      parsed.searchParams.get("v") ??
+      parsed.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1];
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  }
+  if (host === "youtu.be") {
+    const videoId = parsed.pathname.slice(1);
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  }
+  if (host === "vimeo.com") {
+    const videoId = parsed.pathname.match(/^\/(\d+)/)?.[1];
+    return videoId ? `https://player.vimeo.com/video/${videoId}` : null;
+  }
+  if (host === "player.vimeo.com") {
+    return parsed.pathname.startsWith("/video/") ? url : null;
+  }
+  return null;
+}
+
+function VideoEmbed({ embedUrl }: { embedUrl: string }) {
+  return (
+    <span className="relative my-2 block aspect-video max-w-2xl">
+      <iframe
+        src={embedUrl}
+        className="absolute inset-0 size-full rounded-md border-0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    </span>
+  );
+}
+
 function PreWithCopyBtn({ className, ...props }: React.ComponentProps<"pre">) {
   const ref = React.useRef<HTMLPreElement>(null);
   return (
@@ -82,6 +126,17 @@ export function MarkdownReadonly({
           ),
         pre({ ...props }) {
           return <PreWithCopyBtn {...props} />;
+        },
+        a({ href, children, ...props }) {
+          const embedUrl = href ? getVideoEmbedUrl(href) : null;
+          if (embedUrl) {
+            return <VideoEmbed embedUrl={embedUrl} />;
+          }
+          return (
+            <a href={href} {...props}>
+              {children}
+            </a>
+          );
         },
         code({ className, children, ...props }) {
           const match = /language-(\w+)/.exec(className ?? "");
