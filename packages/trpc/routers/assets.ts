@@ -62,6 +62,19 @@ export const assetsAppRouter = router({
     .mutation(async ({ input, ctx }) => {
       return await Asset.attachAsset(ctx, input);
     }),
+  attachVideoLink: assetsProcedure
+    .input(
+      z.object({
+        bookmarkId: z.string(),
+        url: z.string().url(),
+        categoryId: z.string().nullish(),
+      }),
+    )
+    .output(zAssetSchema)
+    .use(ensureBookmarkOwnership)
+    .mutation(async ({ input, ctx }) => {
+      return await Asset.attachVideoLink(ctx, input);
+    }),
   setAssetCategory: assetsProcedure
     .input(
       z.object({

@@ -73,6 +73,28 @@ export function useDetachBookmarkAsset(
   );
 }
 
+export function useAttachVideoLink(
+  opts?: Parameters<TRPCApi["assets"]["attachVideoLink"]["mutationOptions"]>[0],
+) {
+  const api = useTRPC();
+  const queryClient = useQueryClient();
+  return useMutation(
+    api.assets.attachVideoLink.mutationOptions({
+      ...opts,
+      onSuccess: (res, req, meta, context) => {
+        queryClient.invalidateQueries(api.bookmarks.getBookmarks.pathFilter());
+        queryClient.invalidateQueries(
+          api.bookmarks.searchBookmarks.pathFilter(),
+        );
+        queryClient.invalidateQueries(
+          api.bookmarks.getBookmark.queryFilter({ bookmarkId: req.bookmarkId }),
+        );
+        return opts?.onSuccess?.(res, req, meta, context);
+      },
+    }),
+  );
+}
+
 export function useAssetCategories(
   opts?: Parameters<TRPCApi["assets"]["listCategories"]["queryOptions"]>[0],
 ) {

@@ -2,8 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { assetCategories, assets } from "@karakeep/db/schema";
-import { deleteAsset } from "@karakeep/shared/assetdb";
+import { AssetTypes, assetCategories, assets } from "@karakeep/db/schema";
+import { deleteAsset, newAssetId } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import { createSignedToken } from "@karakeep/shared/signedTokens";
 import { zAssetSignedTokenSchema } from "@karakeep/shared/types/assets";
@@ -18,6 +18,30 @@ import {
   mapSchemaAssetTypeToDB,
 } from "../lib/attachments";
 import { BareBookmark } from "./bookmarks";
+
+// Accepts youtube.com/watch, youtube.com/shorts, m.youtube.com, and youtu.be
+// links and returns the bare video id, or null if the URL isn't a
+// recognizable YouTube video link.
+export function extractYoutubeVideoId(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    return (
+      parsed.searchParams.get("v") ??
+      parsed.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] ??
+      null
+    );
+  }
+  if (host === "youtu.be") {
+    return parsed.pathname.slice(1) || null;
+  }
+  return null;
+}
 
 export class Asset {
   constructor(
@@ -123,7 +147,54 @@ export class Asset {
       id: updatedAsset.id,
       assetType: mapDBAssetTypeToUserType(updatedAsset.assetType),
       fileName: updatedAsset.fileName,
+      contentType: updatedAsset.contentType,
       categoryId: updatedAsset.categoryId,
+      sourceUrl: updatedAsset.sourceUrl,
+    };
+  }
+
+  static async attachVideoLink(
+    ctx: AuthedContext,
+    input: {
+      bookmarkId: string;
+      url: string;
+      categoryId?: string | null;
+    },
+  ) {
+    const videoId = extractYoutubeVideoId(input.url);
+    if (!videoId) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Only YouTube video links are supported",
+      });
+    }
+
+    await Asset.ensureBookmarkOwnership(ctx, input.bookmarkId);
+    if (input.categoryId) {
+      await Asset.ensureCategoryOwnership(ctx, input.categoryId);
+    }
+
+    // Video links have no bytes of their own in the asset store: the row
+    // just carries the external URL, unlike every other asset type.
+    const [created] = await ctx.db
+      .insert(assets)
+      .values({
+        id: newAssetId(),
+        assetType: AssetTypes.VIDEO_LINK,
+        bookmarkId: input.bookmarkId,
+        userId: ctx.user.id,
+        categoryId: input.categoryId ?? null,
+        sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      })
+      .returning();
+
+    return {
+      id: created.id,
+      assetType: mapDBAssetTypeToUserType(created.assetType),
+      fileName: created.fileName,
+      contentType: created.contentType,
+      categoryId: created.categoryId,
+      sourceUrl: created.sourceUrl,
     };
   }
 

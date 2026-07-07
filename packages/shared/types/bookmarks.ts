@@ -47,6 +47,7 @@ export const zAssetTypesSchema = z.enum([
   "bookmarkAsset",
   "precrawledArchive",
   "userUploaded",
+  "videoLink",
   "avatar",
   "unknown",
 ]);
@@ -56,7 +57,10 @@ export const zAssetSchema = z.object({
   id: z.string(),
   assetType: zAssetTypesSchema,
   fileName: z.string().nullish(),
+  contentType: z.string().nullish(),
   categoryId: z.string().nullish(),
+  // Only set for "videoLink" assets: the external video URL.
+  sourceUrl: z.string().nullish(),
 });
 
 export const zBookmarkedLinkSchema = z.object({

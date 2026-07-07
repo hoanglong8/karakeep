@@ -296,6 +296,7 @@ export const enum AssetTypes {
   LINK_HTML_CONTENT = "linkHtmlContent",
   BOOKMARK_ASSET = "bookmarkAsset",
   USER_UPLOADED = "userUploaded",
+  VIDEO_LINK = "videoLink",
   AVATAR = "avatar",
   BACKUP = "backup",
   UNKNOWN = "unknown",
@@ -337,6 +338,7 @@ export const assets = sqliteTable(
         AssetTypes.LINK_HTML_CONTENT,
         AssetTypes.BOOKMARK_ASSET,
         AssetTypes.USER_UPLOADED,
+        AssetTypes.VIDEO_LINK,
         AssetTypes.AVATAR,
         AssetTypes.BACKUP,
         AssetTypes.UNKNOWN,
@@ -357,6 +359,10 @@ export const assets = sqliteTable(
     categoryId: text("categoryId").references(() => assetCategories.id, {
       onDelete: "set null",
     }),
+    // Only meaningful for VIDEO_LINK assets: the external video URL (e.g. a
+    // YouTube link). These assets have no bytes of their own in the asset
+    // store, unlike every other asset type.
+    sourceUrl: text("sourceUrl"),
   },
 
   (tb) => [

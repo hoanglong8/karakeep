@@ -16,19 +16,23 @@ import useUpload from "@/lib/hooks/upload-file";
 import { useTranslation } from "@/lib/i18n/client";
 import {
   ChevronsDownUp,
+  ClipboardPaste,
   Download,
   FolderPlus,
   ImagePlus,
   Loader2,
   Paperclip,
   Pencil,
+  Play,
   Trash2,
+  Youtube,
   X,
 } from "lucide-react";
 
 import {
   useAssetCategories,
   useAttachBookmarkAsset,
+  useAttachVideoLink,
   useCreateAssetCategory,
   useDeleteAssetCategory,
   useDetachBookmarkAsset,
@@ -43,6 +47,124 @@ import {
 } from "@karakeep/trpc/lib/attachments";
 
 type BookmarkAsset = ZBookmark["assets"][number];
+
+// Accepts youtube.com/watch, youtube.com/shorts, m.youtube.com, and youtu.be
+// links and returns the bare video id, or null otherwise. Mirrors the
+// server-side check in packages/trpc/models/assets.ts (kept separate since
+// that file pulls in server-only dependencies that shouldn't reach the
+// client bundle) — only used here for the thumbnail preview.
+function extractYoutubeVideoId(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    return (
+      parsed.searchParams.get("v") ??
+      parsed.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] ??
+      null
+    );
+  }
+  if (host === "youtu.be") {
+    return parsed.pathname.slice(1) || null;
+  }
+  return null;
+}
+
+function DeleteAssetButton({
+  isDetaching,
+  onDetach,
+}: {
+  isDetaching: boolean;
+  onDetach: () => void;
+}) {
+  return (
+    <ActionConfirmingDialog
+      title="Delete Attachment?"
+      description="Are you sure you want to delete the attachment of the bookmark?"
+      actionButton={(setDialogOpen) => (
+        <ActionButton
+          loading={isDetaching}
+          variant="destructive"
+          onClick={() => {
+            onDetach();
+            setDialogOpen(false);
+          }}
+        >
+          <Trash2 className="mr-2 size-4" />
+          Delete
+        </ActionButton>
+      )}
+    >
+      <Button
+        variant="none"
+        size="none"
+        title="Delete"
+        className="rounded-md p-1 hover:text-foreground"
+      >
+        <Trash2 className="size-3.5" strokeWidth={1.5} />
+      </Button>
+    </ActionConfirmingDialog>
+  );
+}
+
+function VideoLinkRow({
+  asset,
+  readOnly,
+  isDetaching,
+  onDetach,
+}: {
+  asset: BookmarkAsset;
+  readOnly: boolean;
+  isDetaching: boolean;
+  onDetach: (assetId: string) => void;
+}) {
+  const videoId = asset.sourceUrl
+    ? extractYoutubeVideoId(asset.sourceUrl)
+    : null;
+  const thumbnailUrl = videoId
+    ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+    : null;
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <a
+        href={asset.sourceUrl ?? undefined}
+        target="_blank"
+        rel="noreferrer"
+        className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+      >
+        {thumbnailUrl ? (
+          <span className="relative block h-8 w-14 shrink-0 overflow-hidden rounded bg-black">
+            {/* eslint-disable-next-line @next/next/no-img-element -- external YouTube CDN thumbnail, not an app asset */}
+            <img
+              src={thumbnailUrl}
+              alt="YouTube video thumbnail"
+              className="size-full object-cover"
+            />
+            <Play
+              className="absolute inset-0 m-auto size-4 text-white"
+              fill="white"
+            />
+          </span>
+        ) : (
+          <Youtube className="size-4 shrink-0" />
+        )}
+        <p className="truncate">{asset.sourceUrl}</p>
+      </a>
+      {!readOnly && (
+        <div className="flex shrink-0 gap-1 text-muted-foreground">
+          <DeleteAssetButton
+            isDetaching={isDetaching}
+            onDetach={() => onDetach(asset.id)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AssetRow({
   asset,
@@ -59,22 +181,45 @@ function AssetRow({
   onReplace: (assetId: string, file: File) => void;
   onDetach: (assetId: string) => void;
 }) {
+  if (asset.assetType === "videoLink") {
+    return (
+      <VideoLinkRow
+        asset={asset}
+        readOnly={readOnly}
+        isDetaching={isDetaching}
+        onDetach={onDetach}
+      />
+    );
+  }
+
   const displayName =
     asset.assetType === "userUploaded" && asset.fileName
       ? asset.fileName
       : humanFriendlyNameForAssertType(asset.assetType);
+  const isImage =
+    asset.assetType === "userUploaded" &&
+    (asset.contentType?.startsWith("image/") ?? false);
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-2">
       <Link
         target="_blank"
         href={getAssetUrl(asset.id)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
         prefetch={false}
       >
-        {ASSET_TYPE_TO_ICON[asset.assetType]}
-        <p>{displayName}</p>
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element -- small inline thumbnail preview, not worth Next/Image's overhead here
+          <img
+            src={getAssetUrl(asset.id)}
+            alt={displayName}
+            className="size-8 shrink-0 rounded object-cover"
+          />
+        ) : (
+          ASSET_TYPE_TO_ICON[asset.assetType]
+        )}
+        <p className="truncate">{displayName}</p>
       </Link>
-      <div className="flex gap-1 text-muted-foreground">
+      <div className="flex shrink-0 gap-1 text-muted-foreground">
         <Link
           title="Download"
           target="_blank"
@@ -102,32 +247,10 @@ function AssetRow({
             </FilePickerButton>
           )}
         {!readOnly && isAllowedToDetachAsset(asset.assetType) && (
-          <ActionConfirmingDialog
-            title="Delete Attachment?"
-            description={`Are you sure you want to delete the attachment of the bookmark?`}
-            actionButton={(setDialogOpen) => (
-              <ActionButton
-                loading={isDetaching}
-                variant="destructive"
-                onClick={() => {
-                  onDetach(asset.id);
-                  setDialogOpen(false);
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </ActionButton>
-            )}
-          >
-            <Button
-              variant="none"
-              size="none"
-              title="Delete"
-              className="rounded-md p-1 hover:text-foreground"
-            >
-              <Trash2 className="size-3.5" strokeWidth={1.5} />
-            </Button>
-          </ActionConfirmingDialog>
+          <DeleteAssetButton
+            isDetaching={isDetaching}
+            onDetach={() => onDetach(asset.id)}
+          />
         )}
       </div>
     </div>
@@ -144,6 +267,9 @@ export default function AttachmentBox({
   const { t } = useTranslation();
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [isAddingVideoLink, setIsAddingVideoLink] = useState(false);
+  const [newVideoUrl, setNewVideoUrl] = useState("");
+  const [isPastingImage, setIsPastingImage] = useState(false);
 
   const {
     mutate: attachAsset,
@@ -229,6 +355,21 @@ export default function AttachmentBox({
       },
     });
 
+  const { mutate: attachVideoLink, isPending: isAttachingVideoLink } =
+    useAttachVideoLink({
+      onSuccess: () => {
+        toast({ description: "Video has been attached!" });
+        setNewVideoUrl("");
+        setIsAddingVideoLink(false);
+      },
+      onError: (e) => {
+        toast({
+          description: e.message,
+          variant: "destructive",
+        });
+      },
+    });
+
   const doReplace = (oldAssetId: string, file: File) => {
     uploadAsset(file, {
       onSuccess: (resp) => {
@@ -253,7 +394,7 @@ export default function AttachmentBox({
   const uploadQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const uploadInto = (file: File, categoryId: string | null) => {
-    uploadQueueRef.current = uploadQueueRef.current.then(async () => {
+    const next = uploadQueueRef.current.then(async () => {
       try {
         const resp = await uploadAssetAsync(file);
         await attachAssetAsync({
@@ -268,13 +409,51 @@ export default function AttachmentBox({
         // Errors are already surfaced via the mutations' onError toasts.
       }
     });
+    uploadQueueRef.current = next;
+    return next;
+  };
+
+  const handlePasteImage = async (
+    e: React.ClipboardEvent<HTMLDivElement>,
+  ) => {
+    const items = e.clipboardData?.items;
+    if (!items) {
+      return;
+    }
+    for (const item of items) {
+      if (item.type.startsWith("image")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) {
+          continue;
+        }
+        setIsPastingImage(true);
+        try {
+          await uploadInto(file, null);
+        } finally {
+          setIsPastingImage(false);
+        }
+        return;
+      }
+    }
+  };
+
+  const submitVideoLink = () => {
+    const url = newVideoUrl.trim();
+    if (!url) {
+      return;
+    }
+    attachVideoLink({ bookmarkId: bookmark.id, url, categoryId: null });
   };
 
   const systemAssets = bookmark.assets
-    .filter((a) => a.assetType !== "userUploaded")
+    .filter((a) => a.assetType !== "userUploaded" && a.assetType !== "videoLink")
     .sort((a, b) => a.assetType.localeCompare(b.assetType));
   const userUploadedAssets = bookmark.assets.filter(
     (a) => a.assetType === "userUploaded",
+  );
+  const videoAssets = bookmark.assets.filter(
+    (a) => a.assetType === "videoLink",
   );
 
   const assetsByCategory = new Map<string, BookmarkAsset[]>();
@@ -369,6 +548,25 @@ export default function AttachmentBox({
         ))}
         {!hasAssets && readOnly && (
           <p className="py-1 text-xs text-muted-foreground">No attachments</p>
+        )}
+
+        {videoAssets.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Videos
+            </p>
+            {videoAssets.map((asset) => (
+              <AssetRow
+                key={asset.id}
+                asset={asset}
+                readOnly={readOnly}
+                isReplacing={isReplacing}
+                isDetaching={isDetaching}
+                onReplace={doReplace}
+                onDetach={doDetach}
+              />
+            ))}
+          </div>
         )}
 
         {(categories.length > 0 || uncategorizedAssets.length > 0) && (
@@ -471,60 +669,131 @@ export default function AttachmentBox({
         )}
 
         {!readOnly && (
-          <div className="mt-2">
-            {isAddingCategory ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  autoFocus
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      submitNewCategory();
-                    } else if (e.key === "Escape") {
+          <div className="mt-2 flex flex-col gap-2">
+            <div
+              tabIndex={0}
+              role="button"
+              onPaste={handlePasteImage}
+              title="Click here, then press Ctrl+V to paste an image"
+              className="flex cursor-text items-center gap-2 rounded-md border border-dashed px-2 py-1.5 text-xs text-muted-foreground outline-none hover:text-foreground focus:border-solid focus:border-ring focus:text-foreground"
+            >
+              {isPastingImage ? (
+                <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              ) : (
+                <ClipboardPaste className="size-3.5 shrink-0" />
+              )}
+              Click here, then paste an image (Ctrl+V)
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {isAddingCategory ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        submitNewCategory();
+                      } else if (e.key === "Escape") {
+                        setIsAddingCategory(false);
+                        setNewCategoryName("");
+                      }
+                    }}
+                    placeholder="Category name"
+                    className="h-7 text-xs"
+                  />
+                  <Button
+                    variant="none"
+                    size="none"
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                    disabled={isCreatingCategory}
+                    onClick={submitNewCategory}
+                  >
+                    {isCreatingCategory ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <FolderPlus className="size-3.5" strokeWidth={1.5} />
+                    )}
+                  </Button>
+                  <Button
+                    variant="none"
+                    size="none"
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
                       setIsAddingCategory(false);
                       setNewCategoryName("");
-                    }
-                  }}
-                  placeholder="Category name"
+                    }}
+                  >
+                    <X className="size-3.5" strokeWidth={1.5} />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="h-7 text-xs"
-                />
-                <Button
-                  variant="none"
-                  size="none"
-                  className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                  disabled={isCreatingCategory}
-                  onClick={submitNewCategory}
+                  onClick={() => setIsAddingCategory(true)}
                 >
-                  {isCreatingCategory ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <FolderPlus className="size-3.5" strokeWidth={1.5} />
-                  )}
+                  <FolderPlus className="mr-2 size-3.5" strokeWidth={1.5} />
+                  New Category
                 </Button>
+              )}
+
+              {isAddingVideoLink ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    value={newVideoUrl}
+                    onChange={(e) => setNewVideoUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        submitVideoLink();
+                      } else if (e.key === "Escape") {
+                        setIsAddingVideoLink(false);
+                        setNewVideoUrl("");
+                      }
+                    }}
+                    placeholder="YouTube video URL"
+                    className="h-7 w-48 text-xs"
+                  />
+                  <Button
+                    variant="none"
+                    size="none"
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                    disabled={isAttachingVideoLink}
+                    onClick={submitVideoLink}
+                  >
+                    {isAttachingVideoLink ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Youtube className="size-3.5" strokeWidth={1.5} />
+                    )}
+                  </Button>
+                  <Button
+                    variant="none"
+                    size="none"
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setIsAddingVideoLink(false);
+                      setNewVideoUrl("");
+                    }}
+                  >
+                    <X className="size-3.5" strokeWidth={1.5} />
+                  </Button>
+                </div>
+              ) : (
                 <Button
-                  variant="none"
-                  size="none"
-                  className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setIsAddingCategory(false);
-                    setNewCategoryName("");
-                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setIsAddingVideoLink(true)}
                 >
-                  <X className="size-3.5" strokeWidth={1.5} />
+                  <Youtube className="mr-2 size-3.5" strokeWidth={1.5} />
+                  Video Link
                 </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setIsAddingCategory(true)}
-              >
-                <FolderPlus className="mr-2 size-3.5" strokeWidth={1.5} />
-                New Category
-              </Button>
-            )}
+              )}
+            </div>
           </div>
         )}
 
