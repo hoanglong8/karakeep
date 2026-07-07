@@ -213,6 +213,9 @@ export const bookmarks = sqliteTable(
     }).default("pending"),
     summary: text("summary"),
     note: text("note"),
+    loginUrl: text("loginUrl"),
+    loginUsername: text("loginUsername"),
+    loginPassword: text("loginPassword"),
     type: text("type", {
       enum: [BookmarkTypes.LINK, BookmarkTypes.TEXT, BookmarkTypes.ASSET],
     }).notNull(),
@@ -413,7 +416,9 @@ export const bookmarkAssets = sqliteTable("bookmarkAssets", {
     .primaryKey()
     .$defaultFn(() => createId())
     .references(() => bookmarks.id, { onDelete: "cascade" }),
-  assetType: text("assetType", { enum: ["image", "pdf"] }).notNull(),
+  assetType: text("assetType", {
+    enum: ["image", "pdf", "docx", "xlsx"],
+  }).notNull(),
   assetId: text("assetId").notNull(),
   content: text("content"),
   metadata: text("metadata"),
@@ -485,6 +490,7 @@ export const bookmarkLists = sqliteTable(
     name: text("name").notNull(),
     description: text("description"),
     icon: text("icon").notNull(),
+    color: text("color"),
     createdAt: createdAtField(),
     userId: text("userId")
       .notNull()

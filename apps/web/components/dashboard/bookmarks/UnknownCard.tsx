@@ -10,10 +10,12 @@ import { BookmarkLayoutAdaptingCard } from "./BookmarkLayoutAdaptingCard";
 export default function UnknownCard({
   bookmark,
   className,
+  style,
   bookmarkIndex,
 }: {
   bookmark: ZBookmark;
   className?: string;
+  style?: React.CSSProperties;
   bookmarkIndex?: number;
 }) {
   const { t } = useTranslation();
@@ -22,6 +24,7 @@ export default function UnknownCard({
       title={bookmark.title}
       bookmark={bookmark}
       className={className}
+      style={style}
       bookmarkIndex={bookmarkIndex}
       wrapTags={false}
       image={(_layout) => (

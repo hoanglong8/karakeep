@@ -22,6 +22,7 @@
     "something_went_wrong": "Something went wrong",
     "experimental": "Experimental",
     "search": "Search",
+    "ai_search": "AI Search",
     "tags": "Tags",
     "note": "Note",
     "attachments": "Attachments",
@@ -809,6 +810,9 @@
     "search_query": "Search Query",
     "search_query_help": "Learn more about the search query language.",
     "description": "Description (Optional)",
+    "color": "Color",
+    "no_color": "No color",
+    "color_description": "Bookmarks most recently added to this list will show this color as a border on the home screen.",
     "delete_list": {
       "title": "Delete List",
       "description": "Deleting a list doesn't delete any bookmarks in that list.",
@@ -973,6 +977,14 @@
     "tabs": {
       "content": "Content",
       "details": "Details"
+    },
+    "login_info": {
+      "title": "Login Info",
+      "link_placeholder": "Login link (optional)",
+      "username_placeholder": "Username",
+      "password_placeholder": "Password",
+      "show_password": "Show password",
+      "hide_password": "Hide password"
     }
   },
   "editor": {

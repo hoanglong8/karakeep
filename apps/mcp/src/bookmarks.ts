@@ -1,7 +1,9 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
-import { karakeepClient, mcpServer, turndownService } from "./shared";
+import type { KarakeepAPISchemas } from "@karakeep/sdk";
+
+import { fetchApi, karakeepClient, mcpServer, turndownService } from "./shared";
 import { compactBookmark, toMcpToolError } from "./utils";
 
 // Tools
@@ -64,6 +66,43 @@ ${res.data.bookmarks.map((bm) => compactBookmark(bm)).join("\n\n")}
 
 Next cursor: ${res.data.nextCursor ? `'${res.data.nextCursor}'` : "no more pages"}
 `,
+        },
+      ],
+    };
+  },
+);
+
+mcpServer.tool(
+  "search-bookmarks-semantic",
+  `Search for bookmarks by meaning rather than exact keywords (semantic/vector search).
+Use this when the query describes a concept, topic, or intent that might not share exact
+words with the bookmark's title/tags/content — e.g. "a tool to self-host an AI chat
+interface" should still find a bookmark titled "open-webui" even without those words in
+common. Prefer "search-bookmarks" for exact keyword/qualifier search (tags, dates, lists).`,
+  {
+    query: z.string().describe("A natural-language description of what to find."),
+    limit: z
+      .number()
+      .optional()
+      .describe("The number of results to return.")
+      .default(10),
+  },
+  async ({ query, limit }): Promise<CallToolResult> => {
+    const res = await fetchApi(
+      `/bookmarks/search-semantic?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+    if (!res.data) {
+      return toMcpToolError(res.error as string | undefined);
+    }
+    const data = res.data as { bookmarks: KarakeepAPISchemas["Bookmark"][] };
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            data.bookmarks.length > 0
+              ? data.bookmarks.map((bm) => compactBookmark(bm)).join("\n\n")
+              : "No semantically related bookmarks found.",
         },
       ],
     };

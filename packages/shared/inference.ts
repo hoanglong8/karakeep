@@ -180,6 +180,40 @@ export class InferenceClientFactory {
     }
     return null;
   }
+
+  /**
+   * Embeddings sometimes need a different provider than the one used for
+   * tagging/summarization (e.g. a chat-only server that doesn't implement
+   * an embeddings endpoint). Falls back to the main inference provider when
+   * no dedicated embedding provider is configured.
+   */
+  static buildForEmbeddings(): InferenceClient | null {
+    if (serverConfig.embedding.openAIApiKey) {
+      return new OpenAIInferenceClient({
+        apiKey: serverConfig.embedding.openAIApiKey,
+        baseURL: serverConfig.embedding.openAIBaseUrl,
+        textModel: serverConfig.embedding.textModel,
+        imageModel: serverConfig.embedding.textModel,
+        contextLength: serverConfig.embedding.contextLength,
+        maxOutputTokens: serverConfig.inference.maxOutputTokens,
+        useMaxCompletionTokens: false,
+        outputSchema: "plain",
+      });
+    }
+
+    if (serverConfig.embedding.ollamaBaseUrl) {
+      return new OllamaInferenceClient({
+        baseUrl: serverConfig.embedding.ollamaBaseUrl,
+        textModel: serverConfig.embedding.textModel,
+        imageModel: serverConfig.embedding.textModel,
+        contextLength: serverConfig.embedding.contextLength,
+        maxOutputTokens: serverConfig.inference.maxOutputTokens,
+        outputSchema: "plain",
+      });
+    }
+
+    return InferenceClientFactory.build();
+  }
 }
 
 export class OpenAIInferenceClient implements InferenceClient {

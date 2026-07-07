@@ -16,6 +16,7 @@ import {
   Highlighter,
   Home,
   Search,
+  Sparkles,
   Tag,
 } from "lucide-react";
 
@@ -68,6 +69,15 @@ export default async function Dashboard({
               name: t("common.search"),
               icon: <Search size={18} />,
               path: "/dashboard/search",
+            },
+          ]
+        : [],
+      PluginManager.isRegistered(PluginType.VectorStore)
+        ? [
+            {
+              name: t("common.ai_search"),
+              icon: <Sparkles size={18} />,
+              path: "/dashboard/ai-search",
             },
           ]
         : [],

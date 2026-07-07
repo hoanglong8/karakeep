@@ -67,6 +67,11 @@ const BookmarkGridItem = memo(function BookmarkGridItem({
           isFocused &&
             "ring-2 ring-primary ring-offset-2 ring-offset-background",
         )}
+        style={
+          bookmark.listColor
+            ? { borderColor: bookmark.listColor, borderWidth: 2 }
+            : undefined
+        }
       >
         <BookmarkCard bookmark={bookmark} bookmarkIndex={index} />
       </StyledBookmarkCard>

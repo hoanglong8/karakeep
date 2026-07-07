@@ -92,6 +92,26 @@ const app = new Hono()
     },
   )
 
+  // GET /bookmarks/search-semantic
+  .get(
+    "/search-semantic",
+    zValidator(
+      "query",
+      z.object({
+        q: z.string(),
+        limit: z.coerce.number().min(1).max(50).optional(),
+      }),
+    ),
+    async (c) => {
+      const searchParams = c.req.valid("query");
+      const result = await c.var.api.bookmarks.searchBookmarksSemantic({
+        text: searchParams.q,
+        limit: searchParams.limit,
+      });
+      return c.json(result, 200);
+    },
+  )
+
   // GET /bookmarks/check-url
   .get(
     "/check-url",

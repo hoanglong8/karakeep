@@ -1,5 +1,7 @@
 import os from "os";
 import { and, eq } from "drizzle-orm";
+import ExcelJS from "exceljs";
+import mammoth from "mammoth";
 import { workerStatsCounter } from "metrics";
 import PDFParser from "pdf2json";
 import { fromBuffer } from "pdf2pic";
@@ -371,6 +373,99 @@ async function extractAndSavePDFText(
   return true;
 }
 
+async function readDocxText(buffer: Buffer): Promise<string> {
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
+}
+
+async function readXlsxText(buffer: Buffer): Promise<string> {
+  const workbook = new ExcelJS.Workbook();
+  // exceljs's bundled types declare a global `Buffer extends ArrayBuffer`
+  // augmentation that's incompatible with @types/node's real Buffer type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(buffer as any);
+  const sheetTexts: string[] = [];
+  workbook.eachSheet((sheet) => {
+    const rows: string[] = [];
+    sheet.eachRow((row) => {
+      const cells = (row.values as unknown[])
+        .slice(1) // row.values is 1-indexed with a leading empty slot
+        .map((v) => (v === null || v === undefined ? "" : String(v)));
+      rows.push(cells.join("\t"));
+    });
+    sheetTexts.push(`# ${sheet.name}\n${rows.join("\n")}`);
+  });
+  return sheetTexts.join("\n\n");
+}
+
+async function extractAndSaveDocxText(
+  jobId: string,
+  asset: Buffer,
+  bookmark: NonNullable<Awaited<ReturnType<typeof getBookmark>>>,
+  isFixMode: boolean,
+): Promise<boolean> {
+  {
+    const alreadyHasText = !!bookmark.asset.content;
+    if (alreadyHasText && isFixMode) {
+      logger.info(
+        `[assetPreprocessing][${jobId}] Skipping docx text extraction as it's already been extracted.`,
+      );
+      return false;
+    }
+  }
+  logger.info(
+    `[assetPreprocessing][${jobId}] Attempting to extract text from docx.`,
+  );
+  const text = await readDocxText(asset);
+  if (!text.trim()) {
+    throw new Error(
+      `[assetPreprocessing][${jobId}] Docx text is empty. Please make sure the document contains text.`,
+    );
+  }
+  logger.info(
+    `[assetPreprocessing][${jobId}] Extracted ${text.length} characters from docx.`,
+  );
+  await db
+    .update(bookmarkAssets)
+    .set({ content: text })
+    .where(eq(bookmarkAssets.id, bookmark.id));
+  return true;
+}
+
+async function extractAndSaveXlsxText(
+  jobId: string,
+  asset: Buffer,
+  bookmark: NonNullable<Awaited<ReturnType<typeof getBookmark>>>,
+  isFixMode: boolean,
+): Promise<boolean> {
+  {
+    const alreadyHasText = !!bookmark.asset.content;
+    if (alreadyHasText && isFixMode) {
+      logger.info(
+        `[assetPreprocessing][${jobId}] Skipping xlsx text extraction as it's already been extracted.`,
+      );
+      return false;
+    }
+  }
+  logger.info(
+    `[assetPreprocessing][${jobId}] Attempting to extract text from xlsx.`,
+  );
+  const text = await readXlsxText(asset);
+  if (!text.trim()) {
+    throw new Error(
+      `[assetPreprocessing][${jobId}] Xlsx text is empty. Please make sure the spreadsheet contains data.`,
+    );
+  }
+  logger.info(
+    `[assetPreprocessing][${jobId}] Extracted ${text.length} characters from xlsx.`,
+  );
+  await db
+    .update(bookmarkAssets)
+    .set({ content: text })
+    .where(eq(bookmarkAssets.id, bookmark.id));
+  return true;
+}
+
 async function getBookmark(bookmarkId: string) {
   return db.query.bookmarks.findFirst({
     where: eq(bookmarks.id, bookmarkId),
@@ -455,6 +550,26 @@ async function run(req: DequeuedJob<AssetPreprocessingRequest>) {
         isFixMode,
       );
       anythingChanged ||= extractedText || extractedScreenshot;
+      break;
+    }
+    case "docx": {
+      const extractedText = await extractAndSaveDocxText(
+        jobId,
+        asset,
+        bookmark,
+        isFixMode,
+      );
+      anythingChanged ||= extractedText;
+      break;
+    }
+    case "xlsx": {
+      const extractedText = await extractAndSaveXlsxText(
+        jobId,
+        asset,
+        bookmark,
+        isFixMode,
+      );
+      anythingChanged ||= extractedText;
       break;
     }
     default:

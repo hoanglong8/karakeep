@@ -36,6 +36,7 @@ import { EnqueueOptions } from "@karakeep/shared/queueing";
 import { getRateLimitClient } from "@karakeep/shared/ratelimiting";
 import { FilterQuery, getSearchClient } from "@karakeep/shared/search";
 import { parseSearchQuery } from "@karakeep/shared/searchQueryParser";
+import { getVectorStoreClient } from "@karakeep/shared/vectorStore";
 import type { ZBookmarkContent } from "@karakeep/shared/types/bookmarks";
 import {
   BookmarkTypes,
@@ -559,6 +560,9 @@ export const bookmarksAppRouter = router({
           summary: string | null;
           createdAt: Date;
           modifiedAt: Date; // Always update modifiedAt
+          loginUrl: string | null;
+          loginUsername: string | null;
+          loginPassword: string | null;
         }> = {
           modifiedAt: new Date(),
         };
@@ -579,6 +583,15 @@ export const bookmarksAppRouter = router({
         }
         if (input.createdAt !== undefined) {
           commonUpdateData.createdAt = input.createdAt;
+        }
+        if (input.loginUrl !== undefined) {
+          commonUpdateData.loginUrl = input.loginUrl;
+        }
+        if (input.loginUsername !== undefined) {
+          commonUpdateData.loginUsername = input.loginUsername;
+        }
+        if (input.loginPassword !== undefined) {
+          commonUpdateData.loginPassword = input.loginPassword;
         }
 
         if (Object.keys(commonUpdateData).length > 1 || somethingChanged) {
@@ -910,6 +923,85 @@ export const bookmarksAppRouter = router({
                 ver: 1 as const,
                 offset: resp.hits.length + (input.cursor?.offset || 0),
               },
+      };
+    }),
+  searchBookmarksSemantic: bookmarksProcedure
+    .use(createBookmarksQueriedMiddleware())
+    .use(createEventLogMiddleware("search.query"))
+    .input(
+      z.object({
+        text: z.string(),
+        limit: z.number().min(1).max(50).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        bookmarks: z.array(zBookmarkSchema),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const vectorStore = await getVectorStoreClient();
+      if (!vectorStore) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Semantic search is not configured. Enable embeddings (EMBEDDING_ENABLE_AUTO_INDEXING) first.",
+        });
+      }
+
+      const inferenceClient = InferenceClientFactory.buildForEmbeddings();
+      if (!inferenceClient) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "No inference provider is configured for generating query embeddings.",
+        });
+      }
+
+      const embeddingResponse = await inferenceClient.generateEmbeddingFromText(
+        [input.text],
+      );
+      const vector = embeddingResponse.embeddings[0];
+      if (!vector) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate an embedding for the search query",
+        });
+      }
+
+      const resp = await vectorStore.search({
+        vector,
+        filter: [{ type: "eq", field: "userId", value: ctx.user.id }],
+        limit: input.limit ?? 20,
+      });
+
+      addLogFields<"search.query">({
+        "search.has_query": input.text.length > 0,
+        "search.results_count": resp.hits.length,
+      });
+
+      if (resp.hits.length === 0) {
+        return { bookmarks: [] };
+      }
+
+      const idToScore = resp.hits.reduce<Record<string, number>>(
+        (acc, h) => {
+          acc[h.id] = h.score;
+          return acc;
+        },
+        {},
+      );
+
+      const { bookmarks: results } = await Bookmark.loadMulti(ctx, {
+        ids: resp.hits.map((h) => h.id),
+        sortOrder: "desc",
+        includeContent: false,
+      });
+
+      results.sort((a, b) => (idToScore[b.id] ?? 0) - (idToScore[a.id] ?? 0));
+
+      return {
+        bookmarks: results.map((b) => b.asZBookmark()),
       };
     }),
   checkUrl: bookmarksProcedure

@@ -33,8 +33,7 @@ export function useUploadAsset() {
 
   const { mutateAsync: runUploadAsset } = useUpload({
     onSuccess: async (resp) => {
-      const assetType =
-        resp.contentType === "application/pdf" ? "pdf" : "image";
+      const assetType = contentTypeToAssetType(resp.contentType);
       await createBookmark({
         ...resp,
         type: BookmarkTypes.ASSET,
@@ -52,19 +51,25 @@ export function useUploadAsset() {
 
   return useCallback(
     async (file: File) => {
-      // Handle markdown files as text bookmarks
-      if (file.type === "text/markdown" || file.name.endsWith(".md")) {
+      // Handle plain text/markdown files as text bookmarks directly, no need
+      // to go through the asset pipeline for those.
+      if (
+        file.type === "text/markdown" ||
+        file.type === "text/plain" ||
+        file.name.endsWith(".md") ||
+        file.name.endsWith(".txt")
+      ) {
         try {
           const content = await file.text();
           await createBookmark({
             type: BookmarkTypes.TEXT,
             text: content,
-            title: file.name.replace(/\.md$/i, ""), // Remove .md extension from title
+            title: file.name.replace(/\.(md|txt)$/i, ""),
             source: "web",
           });
         } catch {
           toast({
-            description: `${file.name}: Failed to read markdown file`,
+            description: `${file.name}: Failed to read text file`,
             variant: "destructive",
           });
         }
@@ -74,6 +79,21 @@ export function useUploadAsset() {
     },
     [runUploadAsset],
   );
+}
+
+function contentTypeToAssetType(
+  contentType: string,
+): "pdf" | "docx" | "xlsx" | "image" {
+  switch (contentType) {
+    case "application/pdf":
+      return "pdf";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return "docx";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return "xlsx";
+    default:
+      return "image";
+  }
 }
 
 function useUploadAssets({
@@ -163,7 +183,7 @@ export default function UploadDropzone({
               </div>
             ) : (
               <p className="text-2xl font-bold text-gray-700">
-                Drop Your Image / PDF / Markdown file
+                Drop Your Image / PDF / Word / Excel / Text file
               </p>
             )}
           </div>

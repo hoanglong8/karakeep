@@ -25,6 +25,11 @@ export const enum BookmarkTypes {
 export const zSortOrder = z.enum(["asc", "desc", "relevance"]);
 export type ZSortOrder = z.infer<typeof zSortOrder>;
 
+// The file formats supported for ASSET-type bookmarks (i.e. an uploaded
+// file/document, as opposed to a crawled link or a plain text note).
+export const ZBOOKMARK_ASSET_TYPES = ["image", "pdf", "docx", "xlsx"] as const;
+export const zBookmarkAssetTypeSchema = z.enum(ZBOOKMARK_ASSET_TYPES);
+
 export const zAssetTypesSchema = z.enum([
   "linkHtmlContent",
   "screenshot",
@@ -80,7 +85,7 @@ export type ZBookmarkedText = z.infer<typeof zBookmarkedTextSchema>;
 
 export const zBookmarkedAssetSchema = z.object({
   type: z.literal(BookmarkTypes.ASSET),
-  assetType: z.enum(["image", "pdf"]),
+  assetType: zBookmarkAssetTypeSchema,
   assetId: z.string(),
   fileName: z.string().nullish(),
   sourceUrl: z.string().nullish(),
@@ -123,6 +128,12 @@ export const zBareBookmarkSchema = z.object({
   summary: z.string().nullish(),
   source: zBookmarkSourceSchema.nullish(),
   userId: z.string(),
+  loginUrl: z.string().nullish(),
+  loginUsername: z.string().nullish(),
+  loginPassword: z.string().nullish(),
+  // The color of the list this bookmark was most recently added to (if any).
+  // Used to render a colored border in the bookmarks grid.
+  listColor: z.string().nullish(),
 });
 
 export type ZBareBookmark = z.infer<typeof zBareBookmarkSchema>;
@@ -195,7 +206,7 @@ export const zNewBookmarkRequestSchema = z.intersection(
     }),
     z.object({
       type: z.literal(BookmarkTypes.ASSET),
-      assetType: z.enum(["image", "pdf"]),
+      assetType: zBookmarkAssetTypeSchema,
       assetId: z.string(),
       fileName: z.string().optional(),
       sourceUrl: z.string().optional(),
@@ -258,6 +269,12 @@ export const zUpdateBookmarksRequestSchema = z.object({
 
   // Asset specific fields (optional)
   assetContent: z.string().nullish(),
+
+  // Login info (optional) -- for bookmarks pointing at resources that
+  // require authentication to view.
+  loginUrl: z.string().nullish(),
+  loginUsername: z.string().nullish(),
+  loginPassword: z.string().nullish(),
 });
 export type ZUpdateBookmarksRequest = z.infer<
   typeof zUpdateBookmarksRequestSchema
@@ -310,7 +327,7 @@ export const zPublicBookmarkSchema = z.object({
     }),
     z.object({
       type: z.literal(BookmarkTypes.ASSET),
-      assetType: z.enum(["image", "pdf"]),
+      assetType: zBookmarkAssetTypeSchema,
       assetId: z.string(),
       assetUrl: z.string(),
       fileName: z.string().nullish(),

@@ -28,6 +28,9 @@ export const enum ASSET_TYPES {
   APPLICATION_PDF = "application/pdf",
   APPLICATION_ZIP = "application/zip",
   TEXT_HTML = "text/html",
+  TEXT_PLAIN = "text/plain",
+  APPLICATION_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  APPLICATION_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
   VIDEO_MP4 = "video/mp4",
   VIDEO_WEBM = "video/webm",
@@ -47,17 +50,27 @@ export const IMAGE_ASSET_TYPES: Set<string> = new Set<string>([
   ASSET_TYPES.IMAGE_WEBP,
 ]);
 
+// Document formats we can extract text from for use as a bookmark's content
+// (e.g. as a manually-uploaded stand-in for a page that requires login).
+export const DOCUMENT_ASSET_TYPES: Set<string> = new Set<string>([
+  ASSET_TYPES.APPLICATION_DOCX,
+  ASSET_TYPES.APPLICATION_XLSX,
+]);
+
 // The assets that we allow the users to upload
 export const SUPPORTED_UPLOAD_ASSET_TYPES: Set<string> = new Set<string>([
   ...IMAGE_ASSET_TYPES,
   ...VIDEO_ASSET_TYPES,
+  ...DOCUMENT_ASSET_TYPES,
   ASSET_TYPES.TEXT_HTML,
+  ASSET_TYPES.TEXT_PLAIN,
   ASSET_TYPES.APPLICATION_PDF,
 ]);
 
 // The assets that we allow as a bookmark of type asset
 export const SUPPORTED_BOOKMARK_ASSET_TYPES: Set<string> = new Set<string>([
   ...IMAGE_ASSET_TYPES,
+  ...DOCUMENT_ASSET_TYPES,
   ASSET_TYPES.APPLICATION_PDF,
 ]);
 

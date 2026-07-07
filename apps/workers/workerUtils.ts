@@ -34,6 +34,10 @@ export async function getBookmarkDetails(bookmarkId: string) {
     createdAt: bookmark.createdAt,
     crawledAt: bookmark.link.crawledAt,
     probeMetadataAt: bookmark.link.probeMetadataAt,
+    // If login credentials are set, this resource requires authentication
+    // that our crawler can't perform, so callers should skip crawling it and
+    // rely on a manually-uploaded document instead.
+    requiresLogin: !!(bookmark.loginUsername || bookmark.loginPassword),
     screenshotAssetId: bookmark.assets.find(
       (a) => a.assetType == AssetTypes.LINK_SCREENSHOT,
     )?.id,

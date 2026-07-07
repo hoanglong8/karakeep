@@ -41,6 +41,7 @@ import { AssetContentSection } from "./AssetContentSection";
 import AttachmentBox from "./AttachmentBox";
 import HighlightsBox from "./HighlightsBox";
 import LinkContentSection from "./LinkContentSection";
+import { LoginInfoEditor } from "./LoginInfoEditor";
 import { NoteEditor } from "./NoteEditor";
 import { TextContentSection } from "./TextContentSection";
 
@@ -209,6 +210,13 @@ export default function BookmarkPreview({
       <Separator />
       <BookmarkMetadata bookmark={bookmark} />
       <SummarizeBookmarkArea bookmark={bookmark} readOnly={!isOwner} />
+      <Separator />
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t("preview.login_info.title")}
+        </p>
+        <LoginInfoEditor bookmark={bookmark} disabled={!isOwner} />
+      </div>
       <Separator />
       <div className="flex flex-col gap-1.5">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

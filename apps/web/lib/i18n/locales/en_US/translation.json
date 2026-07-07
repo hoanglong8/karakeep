@@ -3,6 +3,7 @@
     "something_went_wrong": "Something went wrong",
     "experimental": "Experimental",
     "search": "Search",
+    "ai_search": "AI Search",
     "tags": "Tags",
     "note": "Note",
     "attachments": "Attachments",
@@ -919,6 +920,9 @@
     "search_query": "Search Query",
     "search_query_help": "Learn more about the search query language.",
     "description": "Description (Optional)",
+    "color": "Color",
+    "no_color": "No color",
+    "color_description": "Bookmarks most recently added to this list will show this color as a border on the home screen.",
     "share_list": "Share List",
     "rss": {
       "title": "RSS Feed",
@@ -1061,7 +1065,15 @@
     "crawling_in_progress": "Fetching page content…",
     "continue_reading": "Continue where you left off",
     "continue_reading_percent": "Continue where you left off ({{percent}}%)",
-    "continue_button": "Continue"
+    "continue_button": "Continue",
+    "login_info": {
+      "title": "Login Info",
+      "link_placeholder": "Login link (optional)",
+      "username_placeholder": "Username",
+      "password_placeholder": "Password",
+      "show_password": "Show password",
+      "hide_password": "Hide password"
+    }
   },
   "toasts": {
     "bookmarks": {

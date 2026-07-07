@@ -77,6 +77,12 @@ const allEnv = z.object({
   EMBEDDING_CONTEXT_LENGTH: z.coerce.number().int().positive().default(8000),
   EMBEDDING_NUM_WORKERS: z.coerce.number().default(1),
   EMBEDDING_JOB_TIMEOUT_SEC: z.coerce.number().default(60),
+  // Optional dedicated provider for embeddings only. Useful when the main
+  // OPENAI_API_KEY/OLLAMA_BASE_URL points at a chat-only server that doesn't
+  // support embeddings. Falls back to the main inference provider when unset.
+  EMBEDDING_OPENAI_API_KEY: z.string().optional(),
+  EMBEDDING_OPENAI_BASE_URL: z.string().url().optional(),
+  EMBEDDING_OLLAMA_BASE_URL: z.string().url().optional(),
   INFERENCE_CONTEXT_LENGTH: z.coerce.number().default(2048),
   INFERENCE_MAX_OUTPUT_TOKENS: z.coerce.number().default(2048),
   INFERENCE_USE_MAX_COMPLETION_TOKENS: stringBool("false"),
@@ -338,6 +344,9 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
       contextLength: val.EMBEDDING_CONTEXT_LENGTH,
       numWorkers: val.EMBEDDING_NUM_WORKERS,
       jobTimeoutSec: val.EMBEDDING_JOB_TIMEOUT_SEC,
+      openAIApiKey: val.EMBEDDING_OPENAI_API_KEY,
+      openAIBaseUrl: val.EMBEDDING_OPENAI_BASE_URL,
+      ollamaBaseUrl: val.EMBEDDING_OLLAMA_BASE_URL,
     },
     crawler: {
       numWorkers: val.CRAWLER_NUM_WORKERS,

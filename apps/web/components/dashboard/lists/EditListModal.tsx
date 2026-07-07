@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 import { useTranslation } from "@/lib/i18n/client";
+import { cn } from "@/lib/utils";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,6 +58,19 @@ import {
 
 import QueryExplainerTooltip from "../search/QueryExplainerTooltip";
 import { BookmarkListSelector } from "./BookmarkListSelector";
+
+const LIST_COLOR_PRESETS = [
+  "#ef4444",
+  "#f97316",
+  "#f59e0b",
+  "#22c55e",
+  "#14b8a6",
+  "#3b82f6",
+  "#6366f1",
+  "#a855f7",
+  "#ec4899",
+  "#6b7280",
+];
 
 export function EditListModal({
   open: userOpen,
@@ -87,6 +101,7 @@ export function EditListModal({
       name: list?.name ?? prefill?.name ?? "",
       description: list?.description ?? prefill?.description ?? "",
       icon: list?.icon ?? prefill?.icon ?? "📁",
+      color: list?.color ?? prefill?.color ?? null,
       parentId: list?.parentId ?? prefill?.parentId,
       type: list?.type ?? prefill?.type ?? "manual",
       query: list?.query ?? prefill?.query ?? undefined,
@@ -102,6 +117,7 @@ export function EditListModal({
       name: list?.name ?? prefill?.name ?? "",
       description: list?.description ?? prefill?.description ?? "",
       icon: list?.icon ?? prefill?.icon ?? "📁",
+      color: list?.color ?? prefill?.color ?? null,
       parentId: list?.parentId ?? prefill?.parentId,
       type: list?.type ?? prefill?.type ?? "manual",
       query: list?.query ?? prefill?.query ?? undefined,
@@ -283,6 +299,70 @@ export function EditListModal({
                         {...field}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
+            />
+            <FormField
+              control={form.control}
+              name="color"
+              render={({ field }) => {
+                return (
+                  <FormItem className="grow pb-4">
+                    <FormLabel>{t("lists.color")}</FormLabel>
+                    <FormControl>
+                      <Popover>
+                        <PopoverTrigger
+                          type="button"
+                          className="flex items-center gap-2 rounded border border-input px-3 py-1.5 text-sm"
+                        >
+                          <span
+                            className={cn(
+                              "size-4 rounded-full border",
+                              !field.value && "bg-transparent",
+                            )}
+                            style={
+                              field.value
+                                ? { backgroundColor: field.value }
+                                : undefined
+                            }
+                          />
+                          {field.value ?? t("lists.no_color")}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              aria-label={t("lists.no_color")}
+                              className={cn(
+                                "flex size-6 items-center justify-center rounded-full border",
+                                !field.value && "ring-2 ring-ring",
+                              )}
+                              onClick={() => field.onChange(null)}
+                            >
+                              <X className="size-3" />
+                            </button>
+                            {LIST_COLOR_PRESETS.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                aria-label={color}
+                                className={cn(
+                                  "size-6 rounded-full border",
+                                  field.value === color && "ring-2 ring-ring",
+                                )}
+                                style={{ backgroundColor: color }}
+                                onClick={() => field.onChange(color)}
+                              />
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </FormControl>
+                    <FormDescription>
+                      {t("lists.color_description")}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 );

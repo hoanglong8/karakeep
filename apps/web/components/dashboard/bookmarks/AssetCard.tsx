@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText } from "lucide-react";
+import { FileSpreadsheet, FileText } from "lucide-react";
 
 import type { ZBookmarkTypeAsset } from "@karakeep/shared/types/bookmarks";
 import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
@@ -60,6 +60,26 @@ function AssetImage({
         </Link>
       );
     }
+    case "docx": {
+      return (
+        <Link
+          href={`/dashboard/preview/${bookmark.id}`}
+          className={cn(className, "flex items-center justify-center")}
+        >
+          <FileText size={80} />
+        </Link>
+      );
+    }
+    case "xlsx": {
+      return (
+        <Link
+          href={`/dashboard/preview/${bookmark.id}`}
+          className={cn(className, "flex items-center justify-center")}
+        >
+          <FileSpreadsheet size={80} />
+        </Link>
+      );
+    }
     default: {
       const _exhaustiveCheck: never = bookmarkedAsset.assetType;
       return <span />;
@@ -70,10 +90,12 @@ function AssetImage({
 export default function AssetCard({
   bookmark: bookmarkedAsset,
   className,
+  style,
   bookmarkIndex,
 }: {
   bookmark: ZBookmarkTypeAsset;
   className?: string;
+  style?: React.CSSProperties;
   bookmarkIndex?: number;
 }) {
   return (
@@ -86,6 +108,7 @@ export default function AssetCard({
       }
       bookmark={bookmarkedAsset}
       className={className}
+      style={style}
       bookmarkIndex={bookmarkIndex}
       wrapTags={true}
       image={(_layout, className) => (

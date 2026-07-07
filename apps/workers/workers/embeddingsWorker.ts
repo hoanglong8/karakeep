@@ -425,7 +425,7 @@ async function runEmbed(
     "user.id": bookmark.userId,
   });
 
-  const inferenceClient = InferenceClientFactory.build();
+  const inferenceClient = InferenceClientFactory.buildForEmbeddings();
   if (!inferenceClient) {
     logger.debug(
       `[embeddings][${jobId}] No inference client configured, skipping embedding generation`,

@@ -35,7 +35,10 @@ import {
   updateUserSchema,
   zAdminCreateUserSchema,
 } from "@karakeep/shared/types/admin";
-import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
+import {
+  BookmarkTypes,
+  zBookmarkAssetTypeSchema,
+} from "@karakeep/shared/types/bookmarks";
 import { setUrlHostnameFromResolvedAddress } from "@karakeep/shared/utils/url";
 import { getVectorStoreClient } from "@karakeep/shared/vectorStore";
 
@@ -763,7 +766,7 @@ export const adminAppRouter = router({
           .nullable(),
         assetInfo: z
           .object({
-            assetType: z.enum(["image", "pdf"]),
+            assetType: zBookmarkAssetTypeSchema,
             hasContent: z.boolean(),
             fileName: z.string().nullable(),
           })

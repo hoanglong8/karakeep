@@ -22,6 +22,7 @@ import {
   AssetTypes,
   bookmarkAssets,
   bookmarkLinks,
+  bookmarkLists,
   bookmarks,
   bookmarksInLists,
   bookmarkTags,
@@ -67,6 +68,17 @@ async function dummyDrizzleReturnType() {
       text: true,
       asset: true,
       assets: true,
+      bookmarksInLists: {
+        orderBy: (biL, { desc }) => [desc(biL.addedAt)],
+        limit: 1,
+        with: {
+          list: {
+            columns: {
+              color: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!x) {
@@ -152,7 +164,9 @@ export class Bookmark extends BareBookmark {
     bookmark: BookmarkQueryReturnType,
     includeContent: boolean,
   ): Promise<ZBookmark> {
-    const { tagsOnBookmarks, link, text, asset, assets, ...rest } = bookmark;
+    const { tagsOnBookmarks, link, text, asset, assets, bookmarksInLists, ...rest } =
+      bookmark;
+    const listColor = bookmarksInLists[0]?.list.color ?? null;
 
     let content: ZBookmarkContent = {
       type: BookmarkTypes.UNKNOWN,
@@ -226,6 +240,7 @@ export class Bookmark extends BareBookmark {
         assetType: mapDBAssetTypeToUserType(a.assetType),
         fileName: a.fileName,
       })),
+      listColor,
       ...rest,
     };
   }
@@ -247,6 +262,17 @@ export class Bookmark extends BareBookmark {
         text: true,
         asset: true,
         assets: true,
+        bookmarksInLists: {
+          orderBy: (biL, { desc }) => [desc(biL.addedAt)],
+          limit: 1,
+          with: {
+            list: {
+              columns: {
+                color: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -627,6 +653,7 @@ export class Bookmark extends BareBookmark {
             content,
             tags: [],
             assets: [],
+            listColor: null,
           };
         }
 
@@ -693,6 +720,47 @@ export class Bookmark extends BareBookmark {
 
     const bookmarksArr = Object.values(bookmarksRes);
 
+    // Fetch each bookmark's most-recently-added list color (used to render a
+    // colored border in the bookmarks grid). Done as a separate query rather
+    // than another join above to avoid multiplying the already-joined rows.
+    if (bookmarksArr.length > 0) {
+      const listColorRows = await ctx.db
+        .select({
+          bookmarkId: bookmarksInLists.bookmarkId,
+          addedAt: bookmarksInLists.addedAt,
+          color: bookmarkLists.color,
+        })
+        .from(bookmarksInLists)
+        .innerJoin(bookmarkLists, eq(bookmarkLists.id, bookmarksInLists.listId))
+        .where(
+          inArray(
+            bookmarksInLists.bookmarkId,
+            bookmarksArr.map((b) => b.id),
+          ),
+        );
+
+      const mostRecentByBookmark = new Map<
+        string,
+        { addedAt: Date | null; color: string | null }
+      >();
+      for (const row of listColorRows) {
+        const existing = mostRecentByBookmark.get(row.bookmarkId);
+        if (
+          !existing ||
+          (row.addedAt &&
+            (!existing.addedAt || row.addedAt > existing.addedAt))
+        ) {
+          mostRecentByBookmark.set(row.bookmarkId, {
+            addedAt: row.addedAt,
+            color: row.color,
+          });
+        }
+      }
+      for (const b of bookmarksArr) {
+        b.listColor = mostRecentByBookmark.get(b.id)?.color ?? null;
+      }
+    }
+
     // Fetch HTML content from assets for bookmarks that have contentAssetId (large content)
     if (input.includeContent) {
       await Promise.all(
@@ -757,12 +825,15 @@ export class Bookmark extends BareBookmark {
     }
 
     // Collaborators shouldn't see owner-specific state such as favourites,
-    // archived flag, or personal notes.
+    // archived flag, personal notes, or login credentials.
     return {
       ...this.bookmark,
       archived: false,
       favourited: false,
       note: null,
+      loginUrl: null,
+      loginUsername: null,
+      loginPassword: null,
     };
   }
 
@@ -836,6 +907,9 @@ export class Bookmark extends BareBookmark {
               }
               return getPublicSignedAssetUrl(screenshotAssetId);
             }
+            case "docx":
+            case "xlsx":
+              return null;
             default: {
               const _exhaustiveCheck: never = content.assetType;
               return null;

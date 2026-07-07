@@ -51,6 +51,7 @@ interface Props {
   content?: ReactNode;
   footer?: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
   fitHeight?: boolean;
   wrapTags: boolean;
   bookmarkIndex?: number;
@@ -289,6 +290,7 @@ function ListView({
   content,
   footer,
   className,
+  style,
   bookmarkIndex,
 }: Props) {
   const { showNotes, showTags, showTitle, imageFit } =
@@ -305,6 +307,7 @@ function ListView({
         "group relative flex max-h-96 gap-4 overflow-hidden rounded-lg p-2",
         className,
       )}
+      style={style}
       data-bookmark-index={bookmarkIndex}
     >
       <MultiBookmarkSelector bookmark={bookmark} />
@@ -348,6 +351,7 @@ function GridView({
   content,
   footer,
   className,
+  style,
   wrapTags,
   layout,
   fitHeight = false,
@@ -372,6 +376,7 @@ function GridView({
         className,
         fitHeight && layout != "grid" ? "max-h-96" : "h-96",
       )}
+      style={style}
       data-bookmark-index={bookmarkIndex}
     >
       <MultiBookmarkSelector bookmark={bookmark} />
@@ -409,6 +414,7 @@ function CompactView({
   title,
   footer,
   className,
+  style,
   bookmarkIndex,
 }: Props) {
   const { showTitle } = useBookmarkDisplaySettings();
@@ -419,6 +425,7 @@ function CompactView({
         className,
         "max-h-96",
       )}
+      style={style}
       data-bookmark-index={bookmarkIndex}
     >
       <MultiBookmarkSelector bookmark={bookmark} />

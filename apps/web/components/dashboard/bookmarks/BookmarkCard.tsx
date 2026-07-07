@@ -12,10 +12,12 @@ import UnknownCard from "./UnknownCard";
 export default function BookmarkCard({
   bookmark: initialData,
   className,
+  style,
   bookmarkIndex,
 }: {
   bookmark: ZBookmark;
   className?: string;
+  style?: React.CSSProperties;
   bookmarkIndex?: number;
 }) {
   const api = useTRPC();
@@ -42,6 +44,7 @@ export default function BookmarkCard({
       return (
         <LinkCard
           className={className}
+          style={style}
           bookmarkIndex={bookmarkIndex}
           bookmark={{ ...bookmark, content: bookmark.content }}
         />
@@ -50,6 +53,7 @@ export default function BookmarkCard({
       return (
         <TextCard
           className={className}
+          style={style}
           bookmarkIndex={bookmarkIndex}
           bookmark={{ ...bookmark, content: bookmark.content }}
         />
@@ -58,6 +62,7 @@ export default function BookmarkCard({
       return (
         <AssetCard
           className={className}
+          style={style}
           bookmarkIndex={bookmarkIndex}
           bookmark={{ ...bookmark, content: bookmark.content }}
         />
@@ -66,6 +71,7 @@ export default function BookmarkCard({
       return (
         <UnknownCard
           className={className}
+          style={style}
           bookmarkIndex={bookmarkIndex}
           bookmark={bookmark}
         />

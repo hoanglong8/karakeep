@@ -90,10 +90,12 @@ function LinkImage({
 export default function LinkCard({
   bookmark: bookmarkLink,
   className,
+  style,
   bookmarkIndex,
 }: {
   bookmark: ZBookmarkTypeLink;
   className?: string;
+  style?: React.CSSProperties;
   bookmarkIndex?: number;
 }) {
   return (
@@ -106,6 +108,7 @@ export default function LinkCard({
         <LinkImage className={className} bookmark={bookmarkLink} />
       )}
       className={className}
+      style={style}
       bookmarkIndex={bookmarkIndex}
     />
   );

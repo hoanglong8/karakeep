@@ -358,7 +358,19 @@ async function runCrawler(
     contentAssetId: oldContentAssetId,
     precrawledArchiveAssetId,
     probeMetadataAt,
+    requiresLogin,
   } = await getBookmarkDetails(bookmarkId);
+
+  if (requiresLogin) {
+    // This resource is behind a login wall our crawler can't get past.
+    // Skip the network crawl entirely so we don't overwrite the bookmark
+    // with a login page's content — the user is expected to attach a
+    // manually-uploaded document as the content source instead.
+    logger.info(
+      `[Crawler][${jobId}] Skipping crawl for link with id "${bookmarkId}" as it has login credentials set.`,
+    );
+    return { status: "completed" };
+  }
 
   await checkDomainRateLimit(url, jobId);
 

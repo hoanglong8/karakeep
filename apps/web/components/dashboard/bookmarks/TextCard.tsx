@@ -16,10 +16,12 @@ import FooterLinkURL from "./FooterLinkURL";
 export default function TextCard({
   bookmark,
   className,
+  style,
   bookmarkIndex,
 }: {
   bookmark: ZBookmarkTypeText;
   className?: string;
+  style?: React.CSSProperties;
   bookmarkIndex?: number;
 }) {
   const banner = bookmark.assets.find((a) => a.assetType == "bannerImage");
@@ -40,6 +42,7 @@ export default function TextCard({
         wrapTags={true}
         bookmark={bookmark}
         className={className}
+        style={style}
         bookmarkIndex={bookmarkIndex}
         fitHeight={true}
         image={(layout, className) =>

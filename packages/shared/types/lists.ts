@@ -5,6 +5,10 @@ import { parseSearchQuery } from "../searchQueryParser";
 export const MAX_LIST_NAME_LENGTH = 100;
 export const MAX_LIST_DESCRIPTION_LENGTH = 500;
 
+export const zListColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex code like #3b82f6");
+
 export const zNewBookmarkListSchema = z
   .object({
     name: z
@@ -23,6 +27,7 @@ export const zNewBookmarkListSchema = z
       )
       .optional(),
     icon: z.string(),
+    color: zListColorSchema.nullish(),
     type: z.enum(["manual", "smart"]).optional().default("manual"),
     query: z.string().min(1).optional(),
     parentId: z.string().nullish(),
@@ -53,6 +58,7 @@ export const zBookmarkListSchema = z.object({
   name: z.string(),
   description: z.string().nullish(),
   icon: z.string(),
+  color: z.string().nullish(),
   parentId: z.string().nullable(),
   type: z.enum(["manual", "smart"]).default("manual"),
   query: z.string().nullish(),
@@ -82,6 +88,7 @@ export const zEditBookmarkListSchema = z.object({
     )
     .nullish(),
   icon: z.string().optional(),
+  color: zListColorSchema.nullish(),
   parentId: z.string().nullish(),
   query: z.string().min(1).optional(),
   public: z.boolean().optional(),
