@@ -54,10 +54,19 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+RUN echo "=== DEBUG: drizzle dir entries ===" \
+    && find packages/db/drizzle -maxdepth 1 \
+    && echo "=== DEBUG: meta dir entries (case-insensitive find) ===" \
+    && find packages/db/drizzle -maxdepth 1 -iname "meta*" \
+    && echo "=== DEBUG END ==="
+
 # Build the db migration script
 RUN cd packages/db && \
     pnpm exec ncc build migrate.ts -o /db_migrations && \
-    cp -R drizzle /db_migrations
+    cp -R drizzle /db_migrations \
+    && echo "=== DEBUG: dest drizzle/meta ===" \
+    && ls -la /db_migrations/drizzle/meta | head -5 \
+    && echo "=== DEBUG END ==="
 
 
 # Compile the web app
