@@ -173,8 +173,10 @@ class RestateQueueClient implements QueueClient {
   }
 
   createQueue<T>(name: string, opts: QueueOptions): Queue<T> {
-    if (this.queues.has(name)) {
-      throw new Error(`Queue ${name} already exists`);
+    // Idempotent: see the matching comment in queue-liteque's createQueue.
+    const existing = this.queues.get(name);
+    if (existing) {
+      return existing as Queue<T>;
     }
     const wrapper = new RestateQueueWrapper<T>(name, this.client, opts);
     this.queues.set(name, wrapper);

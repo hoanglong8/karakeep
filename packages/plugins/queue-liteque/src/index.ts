@@ -75,8 +75,14 @@ class LitequeQueueClient implements QueueClient {
   }
 
   createQueue<T>(name: string, options: QueueOptions): Queue<T> {
-    if (this.queues.has(name)) {
-      throw new Error(`Queue ${name} already exists`);
+    // Idempotent: in Next.js dev mode, HMR can re-evaluate the module that
+    // holds the deferred-queue wrapper (resetting its own memoized promise)
+    // while this client instance survives via the plugin registry's
+    // globalThis-backed singleton. Re-registering the same queue name is
+    // then a harmless no-op, not an error — mirrors PluginManager.register().
+    const existing = this.queues.get(name);
+    if (existing) {
+      return existing as Queue<T>;
     }
     const lq = new LQ<T>(name, this.db, {
       defaultJobArgs: { numRetries: options.defaultJobArgs.numRetries },
