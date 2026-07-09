@@ -1,0 +1,4 @@
+# s6-overlay's service-definition files (type/run/up/etc.) are parsed
+# strictly and fail to compile if checked out with CRLF line endings on
+# Windows (core.autocrlf=true). Force LF regardless of local git config.
+docker/root/** text eol=lf
