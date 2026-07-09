@@ -54,19 +54,22 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN echo "=== DEBUG: drizzle dir entries ===" \
-    && find packages/db/drizzle -maxdepth 1 \
-    && echo "=== DEBUG: meta dir entries (case-insensitive find) ===" \
-    && find packages/db/drizzle -maxdepth 1 -iname "meta*" \
-    && echo "=== DEBUG END ==="
-
 # Build the db migration script
+#
+# Railway's build-context upload (both `railway up` and its GitHub-connected
+# builds) silently drops packages/db/drizzle/meta/ from the context for
+# reasons that don't trace back to .dockerignore, .gitignore, or any git/
+# filesystem anomaly (all verified) -- it appears to be specific to a
+# directory literally named "meta". packages/db/drizzle-meta-backup/ is a
+# same-content mirror under a different name that survives the upload;
+# re-materialize it as `meta` here, inside the container, where Railway's
+# context filtering no longer applies. Keep it in sync when new migrations
+# are generated (drizzle-kit writes to drizzle/meta/, not the mirror).
 RUN cd packages/db && \
     pnpm exec ncc build migrate.ts -o /db_migrations && \
-    cp -R drizzle /db_migrations \
-    && echo "=== DEBUG: dest drizzle/meta ===" \
-    && ls -la /db_migrations/drizzle/meta | head -5 \
-    && echo "=== DEBUG END ==="
+    cp -R drizzle /db_migrations && \
+    mkdir -p /db_migrations/drizzle/meta && \
+    cp drizzle-meta-backup/* /db_migrations/drizzle/meta/
 
 
 # Compile the web app
